@@ -30,27 +30,36 @@
             </div>
 
             <div id="results" class="results-section" style="display:none;">
-                <div class="output-section">
-                    <h2>Block Logic Gates</h2>
-                    <div class="diagram-container">
-                        <svg id="gatesSvg" viewBox="0 0 900 400" width="100%" height="400"></svg>
+                <div class="tabs">
+                    <button id="tabDiagrams" class="tab active">Diagrams</button>
+                    <button id="tabTable" class="tab">Truth Table</button>
+                </div>
+
+                <div id="diagramsTab" class="tab-content">
+                    <div class="output-section">
+                        <h2>Block Logic Gates</h2>
+                        <div class="diagram-container">
+                            <svg id="gatesSvg" viewBox="0 0 900 400" width="100%" height="400"></svg>
+                        </div>
+                    </div>
+
+                    <div class="output-section">
+                        <h2>CMOS Implementation</h2>
+                        <div class="diagram-container">
+                            <svg id="cmosSvg" viewBox="0 0 900 450" width="100%" height="450"></svg>
+                        </div>
                     </div>
                 </div>
 
-                <div class="output-section">
-                    <h2>CMOS Implementation</h2>
-                    <div class="diagram-container">
-                        <svg id="cmosSvg" viewBox="0 0 900 450" width="100%" height="450"></svg>
+                <div id="tableTab" class="tab-content" style="display:none;">
+                    <div class="output-section">
+                        <h2>Truth Table</h2>
+                        <div class="table-buttons">
+                            <button id="copyTableBtn" class="btn-secondary">Copy as Tab-Separated</button>
+                            <button id="copyHTMLBtn" class="btn-secondary">Copy as HTML</button>
+                        </div>
+                        <div id="truthTableContainer"></div>
                     </div>
-                </div>
-
-                <div class="output-section">
-                    <h2>Truth Table</h2>
-                    <div class="table-buttons">
-                        <button id="copyTableBtn" class="btn-secondary">Copy as Tab-Separated</button>
-                        <button id="copyHTMLBtn" class="btn-secondary">Copy as HTML</button>
-                    </div>
-                    <div id="truthTableContainer"></div>
                 </div>
             </div>
         </main>

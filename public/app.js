@@ -14,6 +14,10 @@ document.addEventListener('DOMContentLoaded', () => {
   const copyHTMLBtn = document.getElementById('copyHTMLBtn');
   const gatesSvg = document.getElementById('gatesSvg');
   const cmosSvg = document.getElementById('cmosSvg');
+  const tabDiagrams = document.getElementById('tabDiagrams');
+  const tabTable = document.getElementById('tabTable');
+  const diagramsTab = document.getElementById('diagramsTab');
+  const tableTab = document.getElementById('tableTab');
 
   let currentBooleanExpression = null;
   let currentVisualizer = null;
@@ -57,11 +61,8 @@ document.addEventListener('DOMContentLoaded', () => {
       
       // Show results
       resultsDiv.style.display = 'block';
-      
-      // Scroll to results
-      setTimeout(() => {
-        resultsDiv.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      }, 100);
+      // show diagrams tab by default after visualizing
+      switchToTab('diagrams');
       
     } catch (error) {
       showError(`Error: ${error.message}`);
@@ -69,6 +70,24 @@ document.addEventListener('DOMContentLoaded', () => {
       latexDisplay.style.display = 'none';
     }
   }
+
+  // Tab switching
+  function switchToTab(name) {
+    if (name === 'diagrams') {
+      diagramsTab.style.display = 'block';
+      tableTab.style.display = 'none';
+      tabDiagrams.classList.add('active');
+      tabTable.classList.remove('active');
+    } else if (name === 'table') {
+      diagramsTab.style.display = 'none';
+      tableTab.style.display = 'block';
+      tabDiagrams.classList.remove('active');
+      tabTable.classList.add('active');
+    }
+  }
+
+  tabDiagrams && tabDiagrams.addEventListener('click', () => switchToTab('diagrams'));
+  tabTable && tabTable.addEventListener('click', () => switchToTab('table'));
 
   function showError(message) {
     errorMessage.textContent = message;

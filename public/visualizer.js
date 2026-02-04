@@ -16,14 +16,14 @@ class Visualizer {
    */
   renderGateDiagram(svgElement) {
     svgElement.innerHTML = '';
-    svgElement.setAttribute('viewBox', '0 0 900 400');
+    svgElement.setAttribute('viewBox', '0 0 1200 600');
 
     const ns = 'http://www.w3.org/2000/svg';
 
     // Background
     const bg = document.createElementNS(ns, 'rect');
-    bg.setAttribute('width', '900');
-    bg.setAttribute('height', '400');
+    bg.setAttribute('width', '1200');
+    bg.setAttribute('height', '600');
     bg.setAttribute('fill', '#f9f9f9');
     bg.setAttribute('stroke', '#ddd');
     bg.setAttribute('stroke-width', '1');
@@ -31,7 +31,7 @@ class Visualizer {
 
     // Title
     const title = document.createElementNS(ns, 'text');
-    title.setAttribute('x', '450');
+    title.setAttribute('x', '600');
     title.setAttribute('y', '25');
     title.setAttribute('text-anchor', 'middle');
     title.setAttribute('font-size', '18');
@@ -40,8 +40,8 @@ class Visualizer {
     svgElement.appendChild(title);
 
     // Draw variable inputs on left
-    const startY = 80;
-    const gateSpacing = 50;
+    const startY = 120;
+    const gateSpacing = 80;
 
     this.variables.forEach((v, i) => {
       const y = startY + i * gateSpacing;
@@ -65,19 +65,19 @@ class Visualizer {
     });
 
     // Render gate tree from AST
-    this.renderGateTree(svgElement, this.ast, 150, 150);
+    this.renderGateTree(svgElement, this.ast, 200, 250);
 
     // Draw output circle
     const outputCircle = document.createElementNS(ns, 'circle');
-    outputCircle.setAttribute('cx', '850');
-    outputCircle.setAttribute('cy', '150');
+    outputCircle.setAttribute('cx', '1100');
+    outputCircle.setAttribute('cy', '250');
     outputCircle.setAttribute('r', '8');
     outputCircle.setAttribute('fill', '#28a745');
     svgElement.appendChild(outputCircle);
 
     const outputLabel = document.createElementNS(ns, 'text');
-    outputLabel.setAttribute('x', '810');
-    outputLabel.setAttribute('y', '155');
+    outputLabel.setAttribute('x', '1050');
+    outputLabel.setAttribute('y', '255');
     outputLabel.setAttribute('font-size', '14');
     outputLabel.setAttribute('font-weight', 'bold');
     outputLabel.textContent = 'Output';
@@ -89,14 +89,15 @@ class Visualizer {
    */
   renderGateTree(svg, ast, x, y, depth = 0) {
     const ns = 'http://www.w3.org/2000/svg';
-    const spacing = 80;
+    const spacing = 200;
+    const verticalSpacing = 120;
 
     if (ast.type === 'VAR') {
       // Draw variable node
       const rect = document.createElementNS(ns, 'rect');
-      rect.setAttribute('x', x - 20);
+      rect.setAttribute('x', x - 25);
       rect.setAttribute('y', y - 15);
-      rect.setAttribute('width', '40');
+      rect.setAttribute('width', '50');
       rect.setAttribute('height', '30');
       rect.setAttribute('fill', '#e3f2fd');
       rect.setAttribute('stroke', '#1976d2');
@@ -108,152 +109,154 @@ class Visualizer {
       text.setAttribute('x', x);
       text.setAttribute('y', y + 5);
       text.setAttribute('text-anchor', 'middle');
-      text.setAttribute('font-size', '12');
+      text.setAttribute('font-size', '13');
       text.setAttribute('font-weight', 'bold');
       text.textContent = ast.value.toUpperCase();
       svg.appendChild(text);
 
-      return x + 40;
+      return x + 50;
     }
 
     if (ast.type === 'NOT') {
       const inputX = this.renderGateTree(svg, ast.operand, x, y, depth + 1);
-      this.drawNotGate(svg, inputX + 30, y);
-      return inputX + 80;
+      const gateX = inputX + spacing;
+      this.drawNotGate(svg, gateX, y);
+      
+      // Connect from input to gate
+      this.connectLineOrthogonal(svg, inputX, y, gateX - 83, y);
+      
+      return gateX + 83;
     }
 
     if (ast.type === 'AND') {
-      const leftY = y - 40;
-      const rightY = y + 40;
+      const leftY = y - verticalSpacing;
+      const rightY = y + verticalSpacing;
       const leftX = this.renderGateTree(svg, ast.left, x, leftY, depth + 1);
       const rightX = this.renderGateTree(svg, ast.right, x, rightY, depth + 1);
       
-      const gateX = Math.max(leftX, rightX) + 30;
+      const gateX = Math.max(leftX, rightX) + spacing;
       this.drawAndGate(svg, gateX, y);
       
-      // Connect inputs to gate
-      this.connectLine(svg, leftX, leftY, gateX - 35, y - 12);
-      this.connectLine(svg, rightX, rightY, gateX - 35, y + 12);
+      // Connect inputs to gate using orthogonal paths
+      // Gate image is 165 wide, so input ports are approximately at ±50 from center
+      this.connectLineOrthogonal(svg, leftX, leftY, gateX - 50, y - 35);
+      this.connectLineOrthogonal(svg, rightX, rightY, gateX - 50, y + 35);
       
-      return gateX + 80;
+      return gateX + 83;
     }
 
     if (ast.type === 'OR') {
-      const leftY = y - 40;
-      const rightY = y + 40;
+      const leftY = y - verticalSpacing;
+      const rightY = y + verticalSpacing;
       const leftX = this.renderGateTree(svg, ast.left, x, leftY, depth + 1);
       const rightX = this.renderGateTree(svg, ast.right, x, rightY, depth + 1);
       
-      const gateX = Math.max(leftX, rightX) + 30;
+      const gateX = Math.max(leftX, rightX) + spacing;
       this.drawOrGate(svg, gateX, y);
       
-      // Connect inputs to gate
-      this.connectLine(svg, leftX, leftY, gateX - 35, y - 12);
-      this.connectLine(svg, rightX, rightY, gateX - 35, y + 12);
+      // Connect inputs to gate using orthogonal paths
+      this.connectLineOrthogonal(svg, leftX, leftY, gateX - 50, y - 35);
+      this.connectLineOrthogonal(svg, rightX, rightY, gateX - 50, y + 35);
       
-      return gateX + 80;
+      return gateX + 83;
     }
 
     return x;
   }
 
   /**
-   * Draw AND gate
+   * Draw AND gate using image
    */
   drawAndGate(svg, x, y) {
-    const ns = 'http://www.w3.org/2000/svg';
-    const g = document.createElementNS(ns, 'g');
-
-    // Flat left, curved right
-    const path = document.createElementNS(ns, 'path');
-    path.setAttribute('d', `M ${x - 30} ${y - 25} L ${x - 30} ${y + 25} Q ${x + 5} ${y + 25} ${x + 5} ${y} Q ${x + 5} ${y - 25} ${x - 30} ${y - 25}`);
-    path.setAttribute('stroke', '#333');
-    path.setAttribute('stroke-width', '2');
-    path.setAttribute('fill', 'white');
-    g.appendChild(path);
-
-    // Label
-    const text = document.createElementNS(ns, 'text');
-    text.setAttribute('x', x - 10);
-    text.setAttribute('y', y + 6);
-    text.setAttribute('font-size', '12');
-    text.setAttribute('font-weight', 'bold');
-    text.setAttribute('text-anchor', 'middle');
-    text.textContent = '&';
-    g.appendChild(text);
-
-    svg.appendChild(g);
+    this.drawGateImage(svg, x, y, 'and.png', 'AND');
   }
 
   /**
-   * Draw OR gate
+   * Draw OR gate using image
    */
   drawOrGate(svg, x, y) {
-    const ns = 'http://www.w3.org/2000/svg';
-    const g = document.createElementNS(ns, 'g');
-
-    // Curved on both sides
-    const path = document.createElementNS(ns, 'path');
-    path.setAttribute('d', `M ${x - 30} ${y - 25} Q ${x - 20} ${y - 25} ${x - 10} ${y - 18} L ${x + 15} ${y} L ${x - 10} ${y + 18} Q ${x - 20} ${y + 25} ${x - 30} ${y + 25} Q ${x - 40} ${y + 18} ${x - 40} ${y} Q ${x - 40} ${y - 18} ${x - 30} ${y - 25}`);
-    path.setAttribute('stroke', '#333');
-    path.setAttribute('stroke-width', '2');
-    path.setAttribute('fill', 'white');
-    g.appendChild(path);
-
-    // Label
-    const text = document.createElementNS(ns, 'text');
-    text.setAttribute('x', x - 15);
-    text.setAttribute('y', y + 6);
-    text.setAttribute('font-size', '12');
-    text.setAttribute('font-weight', 'bold');
-    text.setAttribute('text-anchor', 'middle');
-    text.textContent = '≥1';
-    g.appendChild(text);
-
-    svg.appendChild(g);
+    this.drawGateImage(svg, x, y, 'or.png', 'OR');
   }
 
   /**
-   * Draw NOT gate
+   * Draw NOT gate using image
    */
   drawNotGate(svg, x, y) {
+    this.drawGateImage(svg, x, y, 'not.png', 'NOT');
+  }
+
+  /**
+   * Draw gate using image
+   */
+  drawGateImage(svg, x, y, imageName, gateType) {
     const ns = 'http://www.w3.org/2000/svg';
     const g = document.createElementNS(ns, 'g');
 
-    // Triangle
-    const path = document.createElementNS(ns, 'path');
-    path.setAttribute('d', `M ${x - 15} ${y - 18} L ${x + 15} ${y} L ${x - 15} ${y + 18} Z`);
-    path.setAttribute('stroke', '#333');
-    path.setAttribute('stroke-width', '2');
-    path.setAttribute('fill', 'white');
-    g.appendChild(path);
+    // Gate image dimensions: 165x135
+    const imgWidth = 165;
+    const imgHeight = 135;
 
-    // Negation circle
-    const circle = document.createElementNS(ns, 'circle');
-    circle.setAttribute('cx', x + 22);
-    circle.setAttribute('cy', y);
-    circle.setAttribute('r', '6');
-    circle.setAttribute('stroke', '#333');
-    circle.setAttribute('stroke-width', '2');
-    circle.setAttribute('fill', 'white');
-    g.appendChild(circle);
+    // Embed the image centered at position (x, y)
+    const image = document.createElementNS(ns, 'image');
+    image.setAttribute('href', `../assets/${imageName}`);
+    image.setAttribute('x', x - imgWidth / 2);
+    image.setAttribute('y', y - imgHeight / 2);
+    image.setAttribute('width', imgWidth);
+    image.setAttribute('height', imgHeight);
+    image.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+    g.appendChild(image);
+
+    // Draw a transparent border for debugging
+    const rect = document.createElementNS(ns, 'rect');
+    rect.setAttribute('x', x - imgWidth / 2);
+    rect.setAttribute('y', y - imgHeight / 2);
+    rect.setAttribute('width', imgWidth);
+    rect.setAttribute('height', imgHeight);
+    rect.setAttribute('fill', 'none');
+    rect.setAttribute('stroke', '#999');
+    rect.setAttribute('stroke-width', '1');
+    rect.setAttribute('opacity', '0.3');
+    g.appendChild(rect);
 
     svg.appendChild(g);
   }
 
   /**
-   * Helper: draw connecting line
+   * Helper: draw orthogonal connecting path (horizontal then vertical)
    */
-  connectLine(svg, x1, y1, x2, y2) {
+  connectLineOrthogonal(svg, x1, y1, x2, y2) {
     const ns = 'http://www.w3.org/2000/svg';
-    const line = document.createElementNS(ns, 'line');
-    line.setAttribute('x1', x1);
-    line.setAttribute('y1', y1);
-    line.setAttribute('x2', x2);
-    line.setAttribute('y2', y2);
-    line.setAttribute('stroke', '#333');
-    line.setAttribute('stroke-width', '1.5');
-    svg.appendChild(line);
+    const midX = (x1 + x2) / 2;
+    
+    // Horizontal line to midpoint
+    const line1 = document.createElementNS(ns, 'line');
+    line1.setAttribute('x1', x1);
+    line1.setAttribute('y1', y1);
+    line1.setAttribute('x2', midX);
+    line1.setAttribute('y2', y1);
+    line1.setAttribute('stroke', '#333');
+    line1.setAttribute('stroke-width', '1.5');
+    svg.appendChild(line1);
+    
+    // Vertical line to destination
+    const line2 = document.createElementNS(ns, 'line');
+    line2.setAttribute('x1', midX);
+    line2.setAttribute('y1', y1);
+    line2.setAttribute('x2', midX);
+    line2.setAttribute('y2', y2);
+    line2.setAttribute('stroke', '#333');
+    line2.setAttribute('stroke-width', '1.5');
+    svg.appendChild(line2);
+    
+    // Horizontal line to destination
+    const line3 = document.createElementNS(ns, 'line');
+    line3.setAttribute('x1', midX);
+    line3.setAttribute('y1', y2);
+    line3.setAttribute('x2', x2);
+    line3.setAttribute('y2', y2);
+    line3.setAttribute('stroke', '#333');
+    line3.setAttribute('stroke-width', '1.5');
+    svg.appendChild(line3);
   }
 
   /**
