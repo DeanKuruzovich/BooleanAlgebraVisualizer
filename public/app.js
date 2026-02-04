@@ -1,150 +1,97 @@
 /**
  * Main Application Logic
- * Handles user interaction and coordinates parsing, visualization, and table generation
  */
 
 document.addEventListener('DOMContentLoaded', () => {
   const expressionInput = document.getElementById('expressionInput');
-  const visualizeBtn = document.getElementById('visualizeBtn');
+  const copyLatexBtn = document.getElementById('copyLatexBtn');
+  const copyCSVBtn = document.getElementById('copyCSVBtn');
   const errorMessage = document.getElementById('errorMessage');
-  const latexDisplay = document.getElementById('latexDisplay');
-  const resultsDiv = document.getElementById('results');
   const truthTableContainer = document.getElementById('truthTableContainer');
-  const copyTableBtn = document.getElementById('copyTableBtn');
-  const copyHTMLBtn = document.getElementById('copyHTMLBtn');
   const gatesSvg = document.getElementById('gatesSvg');
   const cmosSvg = document.getElementById('cmosSvg');
-  const tabDiagrams = document.getElementById('tabDiagrams');
-  const tabTable = document.getElementById('tabTable');
-  const diagramsTab = document.getElementById('diagramsTab');
-  const tableTab = document.getElementById('tableTab');
 
-  let currentBooleanExpression = null;
+  const tabBlockDiagram = document.getElementById('tabBlockDiagram');
+  const tabCMOS = document.getElementById('tabCMOS');
+  const tabTruthTable = document.getElementById('tabTruthTable');
+
+  const blockDiagramTab = document.getElementById('blockDiagramTab');
+  const cmosTab = document.getElementById('cmosTab');
+  const truthTableTab = document.getElementById('truthTableTab');
+
   let currentVisualizer = null;
+  let currentLatex = '';
 
-  // Event listeners
-  visualizeBtn.addEventListener('click', handleVisualize);
+  // Visualize on Enter key
   expressionInput.addEventListener('keypress', (e) => {
     if (e.key === 'Enter') {
-      handleVisualize();
+      visualize();
     }
   });
-  copyTableBtn.addEventListener('click', copyTableAsText);
-  copyHTMLBtn.addEventListener('click', copyTableAsHTML);
 
-  function handleVisualize() {
+  function visualize() {
     const expression = expressionInput.value.trim();
-    
     if (!expression) {
-      showError('Please enter a boolean expression');
+      showError('Enter expression');
       return;
     }
 
     try {
       clearError();
-      
-      // Parse the expression - BooleanExpression class handles all parsing
-      currentBooleanExpression = new BooleanExpression(expression);
-      
-      // Create visualizer from the boolean expression
-      currentVisualizer = new Visualizer(currentBooleanExpression);
-      
-      // Display LaTeX representation
-      const latex = currentBooleanExpression.toLatex();
-      latexDisplay.textContent = `LaTeX: ${latex}`;
-      latexDisplay.style.display = 'block';
-      
-      // Render all three visualization types
+      const boolExpr = new BooleanExpression(expression);
+      currentVisualizer = new Visualizer(boolExpr);
+      currentLatex = boolExpr.toLatex();
+
+      gatesSvg.setAttribute('viewBox', '0 0 1200 600');
       currentVisualizer.renderGateDiagram(gatesSvg);
+      
+      cmosSvg.setAttribute('viewBox', '0 0 900 450');
       currentVisualizer.renderCMOSDiagram(cmosSvg);
+      
       currentVisualizer.renderTruthTable(truthTableContainer);
-      
-      // Show results
-      resultsDiv.style.display = 'block';
-      // show diagrams tab by default after visualizing
-      switchToTab('diagrams');
-      
     } catch (error) {
-      showError(`Error: ${error.message}`);
-      resultsDiv.style.display = 'none';
-      latexDisplay.style.display = 'none';
+      showError(error.message);
     }
   }
+
+  copyLatexBtn.addEventListener('click', () => {
+    if (currentLatex) {
+      navigator.clipboard.writeText(currentLatex);
+    }
+  });
+
+  copyCSVBtn.addEventListener('click', () => {
+    if (!currentVisualizer) return;
+    const vars = currentVisualizer.variables;
+    const table = currentVisualizer.truthTable;
+    let csv = vars.map(v => v.toUpperCase()).join(',') + ',Output\n';
+    table.forEach(row => {
+      csv += vars.map(v => row[v]).join(',') + ',' + row.output + '\n';
+    });
+    navigator.clipboard.writeText(csv);
+  });
 
   // Tab switching
-  function switchToTab(name) {
-    if (name === 'diagrams') {
-      diagramsTab.style.display = 'block';
-      tableTab.style.display = 'none';
-      tabDiagrams.classList.add('active');
-      tabTable.classList.remove('active');
-    } else if (name === 'table') {
-      diagramsTab.style.display = 'none';
-      tableTab.style.display = 'block';
-      tabDiagrams.classList.remove('active');
-      tabTable.classList.add('active');
-    }
-  }
+  const tabs = { block: tabBlockDiagram, cmos: tabCMOS, truth: tabTruthTable };
+  const contents = { block: blockDiagramTab, cmos: cmosTab, truth: truthTableTab };
 
-  tabDiagrams && tabDiagrams.addEventListener('click', () => switchToTab('diagrams'));
-  tabTable && tabTable.addEventListener('click', () => switchToTab('table'));
+  Object.keys(tabs).forEach(key => {
+    tabs[key].addEventListener('click', () => {
+      Object.values(tabs).forEach(t => t.classList.remove('active'));
+      Object.values(contents).forEach(c => c.style.display = 'none');
+      tabs[key].classList.add('active');
+      contents[key].style.display = 'block';
+    });
+  });
 
-  function showError(message) {
-    errorMessage.textContent = message;
+  function showError(msg) {
+    errorMessage.textContent = msg;
     errorMessage.style.display = 'block';
   }
 
   function clearError() {
-    errorMessage.textContent = '';
     errorMessage.style.display = 'none';
   }
 
-  function copyTableAsText() {
-    if (!currentVisualizer) {
-      showError('Please visualize an expression first');
-      return;
-    }
-
-    const variables = currentVisualizer.variables;
-    const truthTable = currentVisualizer.truthTable;
-    
-    // Create header
-    let text = variables.map(v => v.toUpperCase()).join('\t') + '\tOutput\n';
-    
-    // Add rows
-    truthTable.forEach(row => {
-      const values = variables.map(v => row[v]).join('\t');
-      text += values + '\t' + row.output + '\n';
-    });
-    
-    copyToClipboard(text);
-  }
-
-  function copyTableAsHTML() {
-    if (!currentVisualizer) {
-      showError('Please visualize an expression first');
-      return;
-    }
-
-    const table = truthTableContainer.querySelector('table');
-    if (table) {
-      const html = table.outerHTML;
-      copyToClipboard(html);
-    }
-  }
-
-  function copyToClipboard(text) {
-    navigator.clipboard.writeText(text).catch(err => {
-      showError('Failed to copy to clipboard');
-      console.error('Clipboard error:', err);
-    });
-  }
-
-  // Log startup info
-  console.log('Boolean Algebra Visualizer loaded!');
-  console.log('Example expressions:');
-  console.log('  - A·B + C');
-  console.log('  - (A+B)·(C+D)');
-  console.log('  - A\'·B + A·B\'');
-  console.log('  - !(A·B) + C');
+  console.log('Boolean Algebra Visualizer loaded');
 });

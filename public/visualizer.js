@@ -24,64 +24,94 @@ class Visualizer {
     const bg = document.createElementNS(ns, 'rect');
     bg.setAttribute('width', '1200');
     bg.setAttribute('height', '600');
-    bg.setAttribute('fill', '#f9f9f9');
+    bg.setAttribute('fill', 'white');
     bg.setAttribute('stroke', '#ddd');
     bg.setAttribute('stroke-width', '1');
     svgElement.appendChild(bg);
 
-    // Title
-    const title = document.createElementNS(ns, 'text');
-    title.setAttribute('x', '600');
-    title.setAttribute('y', '25');
-    title.setAttribute('text-anchor', 'middle');
-    title.setAttribute('font-size', '18');
-    title.setAttribute('font-weight', 'bold');
-    title.textContent = 'Logic Gate Block Diagram';
-    svgElement.appendChild(title);
-
-    // Draw variable inputs on left
-    const startY = 120;
-    const gateSpacing = 80;
-
-    this.variables.forEach((v, i) => {
-      const y = startY + i * gateSpacing;
-
-      // Input circle
-      const circle = document.createElementNS(ns, 'circle');
-      circle.setAttribute('cx', '40');
-      circle.setAttribute('cy', y);
-      circle.setAttribute('r', '8');
-      circle.setAttribute('fill', '#667eea');
-      svgElement.appendChild(circle);
-
-      // Input label
-      const label = document.createElementNS(ns, 'text');
-      label.setAttribute('x', '65');
-      label.setAttribute('y', y + 5);
-      label.setAttribute('font-size', '14');
-      label.setAttribute('font-weight', 'bold');
-      label.textContent = v.toUpperCase();
-      svgElement.appendChild(label);
-    });
-
+    // Enable zoom and pan
+    const g = document.createElementNS(ns, 'g');
+    g.setAttribute('id', 'zoomGroup');
+    
     // Render gate tree from AST
-    this.renderGateTree(svgElement, this.ast, 200, 250);
+    const finalX = this.renderGateTree(g, this.ast, 200, 250);
 
-    // Draw output circle
-    const outputCircle = document.createElementNS(ns, 'circle');
-    outputCircle.setAttribute('cx', '1100');
-    outputCircle.setAttribute('cy', '250');
-    outputCircle.setAttribute('r', '8');
-    outputCircle.setAttribute('fill', '#28a745');
-    svgElement.appendChild(outputCircle);
+    // Draw output line from final gate
+    const outputX = finalX + 60;
+    const line = document.createElementNS(ns, 'line');
+    line.setAttribute('x1', finalX);
+    line.setAttribute('y1', '250');
+    line.setAttribute('x2', outputX);
+    line.setAttribute('y2', '250');
+    line.setAttribute('stroke', '#333');
+    line.setAttribute('stroke-width', '3.5');
+    g.appendChild(line);
 
     const outputLabel = document.createElementNS(ns, 'text');
-    outputLabel.setAttribute('x', '1050');
+    outputLabel.setAttribute('x', outputX + 10);
     outputLabel.setAttribute('y', '255');
-    outputLabel.setAttribute('font-size', '14');
-    outputLabel.setAttribute('font-weight', 'bold');
+    outputLabel.setAttribute('font-size', '12');
     outputLabel.textContent = 'Output';
-    svgElement.appendChild(outputLabel);
+    g.appendChild(outputLabel);
+
+    svgElement.appendChild(g);
+
+    // Add zoom and pan functionality
+    this.setupZoomPan(svgElement, g);
+  }
+
+  /**
+   * Setup zoom and pan functionality for SVG
+   */
+  setupZoomPan(svgElement, group) {
+    let scale = 1;
+    let panning = false;
+    let startX = 0;
+    let startY = 0;
+    let currentX = 0;
+    let currentY = 0;
+
+    const rect = svgElement.getBoundingClientRect();
+    const centerX = rect.width / 2;
+    const centerY = rect.height / 2;
+
+    const updateTransform = () => {
+      group.setAttribute('transform', 
+        `translate(${centerX}, ${centerY}) scale(${scale}) translate(${-centerX + currentX}, ${-centerY + currentY})`
+      );
+    };
+
+    // Zoom with scroll
+    svgElement.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      const delta = e.deltaY > 0 ? 0.9 : 1.1;
+      scale *= delta;
+      scale = Math.min(Math.max(scale, 0.5), 3);
+      updateTransform();
+    });
+
+    // Pan with mouse drag
+    svgElement.addEventListener('mousedown', (e) => {
+      panning = true;
+      startX = e.clientX - currentX;
+      startY = e.clientY - currentY;
+    });
+
+    svgElement.addEventListener('mousemove', (e) => {
+      if (panning) {
+        currentX = e.clientX - startX;
+        currentY = e.clientY - startY;
+        updateTransform();
+      }
+    });
+
+    svgElement.addEventListener('mouseup', () => {
+      panning = false;
+    });
+
+    svgElement.addEventListener('mouseleave', () => {
+      panning = false;
+    });
   }
 
   /**
@@ -93,15 +123,15 @@ class Visualizer {
     const verticalSpacing = 120;
 
     if (ast.type === 'VAR') {
-      // Draw variable node
+      // Draw variable node box
       const rect = document.createElementNS(ns, 'rect');
       rect.setAttribute('x', x - 25);
       rect.setAttribute('y', y - 15);
       rect.setAttribute('width', '50');
       rect.setAttribute('height', '30');
-      rect.setAttribute('fill', '#e3f2fd');
-      rect.setAttribute('stroke', '#1976d2');
-      rect.setAttribute('stroke-width', '2');
+      rect.setAttribute('fill', 'white');
+      rect.setAttribute('stroke', '#999');
+      rect.setAttribute('stroke-width', '1');
       rect.setAttribute('rx', '3');
       svg.appendChild(rect);
 
@@ -114,7 +144,17 @@ class Visualizer {
       text.textContent = ast.value.toUpperCase();
       svg.appendChild(text);
 
-      return x + 50;
+      // Draw line from box to the right
+      const line = document.createElementNS(ns, 'line');
+      line.setAttribute('x1', x + 25);
+      line.setAttribute('y1', y);
+      line.setAttribute('x2', x + 75);
+      line.setAttribute('y2', y);
+      line.setAttribute('stroke', '#333');
+      line.setAttribute('stroke-width', '3.5');
+      svg.appendChild(line);
+
+      return x + 75;
     }
 
     if (ast.type === 'NOT') {
@@ -122,10 +162,9 @@ class Visualizer {
       const gateX = inputX + spacing;
       this.drawNotGate(svg, gateX, y);
       
-      // Connect from input to gate
-      this.connectLineOrthogonal(svg, inputX, y, gateX - 83, y);
+      this.connectLineOrthogonal(svg, inputX, y, gateX - 60, y);
       
-      return gateX + 83;
+      return gateX + 60;
     }
 
     if (ast.type === 'AND') {
@@ -137,12 +176,10 @@ class Visualizer {
       const gateX = Math.max(leftX, rightX) + spacing;
       this.drawAndGate(svg, gateX, y);
       
-      // Connect inputs to gate using orthogonal paths
-      // Gate image is 165 wide, so input ports are approximately at ±50 from center
       this.connectLineOrthogonal(svg, leftX, leftY, gateX - 50, y - 35);
       this.connectLineOrthogonal(svg, rightX, rightY, gateX - 50, y + 35);
       
-      return gateX + 83;
+      return gateX + 60;
     }
 
     if (ast.type === 'OR') {
@@ -154,11 +191,10 @@ class Visualizer {
       const gateX = Math.max(leftX, rightX) + spacing;
       this.drawOrGate(svg, gateX, y);
       
-      // Connect inputs to gate using orthogonal paths
       this.connectLineOrthogonal(svg, leftX, leftY, gateX - 50, y - 35);
       this.connectLineOrthogonal(svg, rightX, rightY, gateX - 50, y + 35);
       
-      return gateX + 83;
+      return gateX + 60;
     }
 
     return x;
@@ -192,9 +228,9 @@ class Visualizer {
     const ns = 'http://www.w3.org/2000/svg';
     const g = document.createElementNS(ns, 'g');
 
-    // Gate image dimensions: 165x135
-    const imgWidth = 165;
-    const imgHeight = 135;
+    // Gate image dimensions: 165x135 -> scaled down to 120x100
+    const imgWidth = 120;
+    const imgHeight = 100;
 
     // Embed the image centered at position (x, y)
     const image = document.createElementNS(ns, 'image');
@@ -205,18 +241,6 @@ class Visualizer {
     image.setAttribute('height', imgHeight);
     image.setAttribute('preserveAspectRatio', 'xMidYMid meet');
     g.appendChild(image);
-
-    // Draw a transparent border for debugging
-    const rect = document.createElementNS(ns, 'rect');
-    rect.setAttribute('x', x - imgWidth / 2);
-    rect.setAttribute('y', y - imgHeight / 2);
-    rect.setAttribute('width', imgWidth);
-    rect.setAttribute('height', imgHeight);
-    rect.setAttribute('fill', 'none');
-    rect.setAttribute('stroke', '#999');
-    rect.setAttribute('stroke-width', '1');
-    rect.setAttribute('opacity', '0.3');
-    g.appendChild(rect);
 
     svg.appendChild(g);
   }
@@ -235,7 +259,7 @@ class Visualizer {
     line1.setAttribute('x2', midX);
     line1.setAttribute('y2', y1);
     line1.setAttribute('stroke', '#333');
-    line1.setAttribute('stroke-width', '1.5');
+    line1.setAttribute('stroke-width', '3.5');
     svg.appendChild(line1);
     
     // Vertical line to destination
@@ -245,7 +269,7 @@ class Visualizer {
     line2.setAttribute('x2', midX);
     line2.setAttribute('y2', y2);
     line2.setAttribute('stroke', '#333');
-    line2.setAttribute('stroke-width', '1.5');
+    line2.setAttribute('stroke-width', '3.5');
     svg.appendChild(line2);
     
     // Horizontal line to destination
@@ -255,10 +279,9 @@ class Visualizer {
     line3.setAttribute('x2', x2);
     line3.setAttribute('y2', y2);
     line3.setAttribute('stroke', '#333');
-    line3.setAttribute('stroke-width', '1.5');
+    line3.setAttribute('stroke-width', '3.5');
     svg.appendChild(line3);
   }
-
   /**
    * Render CMOS implementation diagram
    */
