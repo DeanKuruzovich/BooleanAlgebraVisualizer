@@ -14,15 +14,33 @@ class BooleanExpression {
 
   /**
    * Normalize expression: convert various formats to canonical form
-   * Converts: · to *, ' to !, + to |
+   * Supports all symbol variants for each operator
    */
   normalize(expr) {
     return expr
-      .replace(/·/g, '*')        // AND symbol to *
-      .replace(/¯/g, "'")        // Overline to apostrophe (if used)
-      .replace(/!/g, "'")        // ! to '
-      .replace(/\+/g, '|')       // OR symbol to |
-      .toLowerCase()             // Normalize case
+      // NOT variants
+      .replace(/'/g, '!')           // ' to !
+      .replace(/¯/g, '!')           // Overline to !
+      // NOR variants
+      .replace(/⊽/g, ' nor ')       // NOR symbol
+      .replace(/↓/g, ' nor ')       // NOR arrow symbol
+      // NAND variants
+      .replace(/⊼/g, ' nand ')      // NAND symbol
+      .replace(/↑/g, ' nand ')      // NAND arrow symbol
+      // XOR variants
+      .replace(/⊕/g, ' xor ')       // XOR symbol
+      .replace(/\^/g, ' xor ')      // ^ to xor
+      // XNOR variants
+      .replace(/⊙/g, ' xnor ')      // XNOR symbol
+      .replace(/≡/g, ' xnor ')      // Equivalence symbol
+      // OR variants
+      .replace(/\|/g, ' or ')       // | to or
+      .replace(/\+/g, ' or ')       // + to or
+      // AND variants
+      .replace(/&/g, ' and ')       // & to and
+      .replace(/\*/g, ' and ')      // * to and
+      .replace(/·/g, ' and ')       // · to and
+      .toLowerCase()
       .trim();
   }
 
@@ -36,6 +54,7 @@ class BooleanExpression {
 
   /**
    * Tokenize expression into meaningful units
+   * Supports: keywords (and, or, not, nand, nor, xor, xnor) and ! for NOT
    */
   tokenize(expr) {
     const tokens = [];
@@ -52,17 +71,40 @@ class BooleanExpression {
       } else if (char === ')') {
         tokens.push({ type: 'RPAREN', value: ')' });
         i++;
-      } else if (char === "'") {
-        tokens.push({ type: 'NOT', value: "'" });
+      } else if (char === '!') {
+        tokens.push({ type: 'NOT', value: '!' });
         i++;
-      } else if (char === '*') {
-        tokens.push({ type: 'AND', value: '*' });
-        i++;
-      } else if (char === '|') {
-        tokens.push({ type: 'OR', value: '|' });
-        i++;
-      } else if (/[a-z0-9]/.test(char)) {
-        // Variable or constant
+      } else if (/[a-z]/.test(char)) {
+        // Check for keyword operators or variables
+        const remaining = expr.substring(i);
+        if (remaining.startsWith('nand')) {
+          tokens.push({ type: 'NAND', value: 'nand' });
+          i += 4;
+        } else if (remaining.startsWith('nor')) {
+          tokens.push({ type: 'NOR', value: 'nor' });
+          i += 3;
+        } else if (remaining.startsWith('not')) {
+          tokens.push({ type: 'NOT', value: 'not' });
+          i += 3;
+        } else if (remaining.startsWith('xnor')) {
+          tokens.push({ type: 'XNOR', value: 'xnor' });
+          i += 4;
+        } else if (remaining.startsWith('xor')) {
+          tokens.push({ type: 'XOR', value: 'xor' });
+          i += 3;
+        } else if (remaining.startsWith('and')) {
+          tokens.push({ type: 'AND', value: 'and' });
+          i += 3;
+        } else if (remaining.startsWith('or')) {
+          tokens.push({ type: 'OR', value: 'or' });
+          i += 2;
+        } else {
+          // Single character variable
+          tokens.push({ type: 'VAR', value: char });
+          i++;
+        }
+      } else if (/[0-9]/.test(char)) {
+        // Numeric constant
         tokens.push({ type: 'VAR', value: char });
         i++;
       } else {
@@ -75,8 +117,9 @@ class BooleanExpression {
   /**
    * Recursive descent parser with operator precedence:
    * 1. NOT (highest)
-   * 2. AND
-   * 3. OR (lowest)
+   * 2. AND, NAND (medium)
+   * 3. XOR, XNOR (medium-low)
+   * 4. OR, NOR (lowest)
    */
   parse() {
     const tokens = this.tokenize(this.normalizedExpression);
@@ -86,15 +129,30 @@ class BooleanExpression {
     const consume = () => tokens[position++];
 
     const parseOr = () => {
-      let left = parseAnd();
-      while (peek() && peek().type === 'OR') {
-        consume(); // consume OR
-        const right = parseAnd();
+      let left = parseXor();
+      while (peek() && (peek().type === 'OR' || peek().type === 'NOR')) {
+        const op = consume();
+        const right = parseXor();
         left = {
-          type: 'OR',
+          type: op.type,
           left: left,
           right: right,
-          operator: '|'
+          operator: op.value
+        };
+      }
+      return left;
+    };
+
+    const parseXor = () => {
+      let left = parseAnd();
+      while (peek() && (peek().type === 'XOR' || peek().type === 'XNOR')) {
+        const op = consume();
+        const right = parseAnd();
+        left = {
+          type: op.type,
+          left: left,
+          right: right,
+          operator: op.value
         };
       }
       return left;
@@ -102,14 +160,14 @@ class BooleanExpression {
 
     const parseAnd = () => {
       let left = parseNot();
-      while (peek() && peek().type === 'AND') {
-        consume(); // consume AND
+      while (peek() && (peek().type === 'AND' || peek().type === 'NAND')) {
+        const op = consume();
         const right = parseNot();
         left = {
-          type: 'AND',
+          type: op.type,
           left: left,
           right: right,
-          operator: '*'
+          operator: op.value
         };
       }
       return left;
@@ -165,6 +223,7 @@ class BooleanExpression {
 
   /**
    * Evaluate AST safely using symbol table (no eval())
+   * Supports: AND, OR, NOT, NAND, NOR, XOR, XNOR
    */
   evaluateAst(ast, symbolTable) {
     if (ast.type === 'VAR') {
@@ -175,6 +234,14 @@ class BooleanExpression {
       return this.evaluateAst(ast.left, symbolTable) && this.evaluateAst(ast.right, symbolTable);
     } else if (ast.type === 'OR') {
       return this.evaluateAst(ast.left, symbolTable) || this.evaluateAst(ast.right, symbolTable);
+    } else if (ast.type === 'NAND') {
+      return !(this.evaluateAst(ast.left, symbolTable) && this.evaluateAst(ast.right, symbolTable));
+    } else if (ast.type === 'NOR') {
+      return !(this.evaluateAst(ast.left, symbolTable) || this.evaluateAst(ast.right, symbolTable));
+    } else if (ast.type === 'XOR') {
+      return this.evaluateAst(ast.left, symbolTable) !== this.evaluateAst(ast.right, symbolTable);
+    } else if (ast.type === 'XNOR') {
+      return this.evaluateAst(ast.left, symbolTable) === this.evaluateAst(ast.right, symbolTable);
     }
     throw new Error(`Unknown AST node type: ${ast.type}`);
   }
@@ -218,6 +285,14 @@ class BooleanExpression {
       return `${this.toLatex(ast.left)} \\cdot ${this.toLatex(ast.right)}`;
     } else if (ast.type === 'OR') {
       return `${this.toLatex(ast.left)} + ${this.toLatex(ast.right)}`;
+    } else if (ast.type === 'NAND') {
+      return `\\overline{${this.toLatex(ast.left)} \\cdot ${this.toLatex(ast.right)}}`;
+    } else if (ast.type === 'NOR') {
+      return `\\overline{${this.toLatex(ast.left)} + ${this.toLatex(ast.right)}}`;
+    } else if (ast.type === 'XOR') {
+      return `${this.toLatex(ast.left)} \\oplus ${this.toLatex(ast.right)}`;
+    } else if (ast.type === 'XNOR') {
+      return `\\overline{${this.toLatex(ast.left)} \\oplus ${this.toLatex(ast.right)}}`;
     }
   }
 

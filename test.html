@@ -35,10 +35,54 @@
                 <p>LaTeX: ${expr2.toLatex()}</p>
             `;
             
-            // Test 3: Visualizer
-            const visualizer = new Visualizer(expr2);
+            // Test 3: New operators - NAND
+            const expr3 = new BooleanExpression("A nand B");
             output.innerHTML += `
-                <h2>Test 3: Visualizer</h2>
+                <h2>Test 3: A nand B</h2>
+                <p>Variables: ${expr3.variables.join(', ')}</p>
+                <p>Normalized: ${expr3.normalizedExpression}</p>
+                <p>AST Type: ${expr3.ast.type}</p>
+                <p>Truth Table Rows: ${expr3.truthTable.length}</p>
+                <p>LaTeX: ${expr3.toLatex()}</p>
+            `;
+
+            // Test 4: New operators - XOR
+            const expr4 = new BooleanExpression("A xor B");
+            output.innerHTML += `
+                <h2>Test 4: A xor B</h2>
+                <p>Variables: ${expr4.variables.join(', ')}</p>
+                <p>Normalized: ${expr4.normalizedExpression}</p>
+                <p>AST Type: ${expr4.ast.type}</p>
+                <p>Truth Table Rows: ${expr4.truthTable.length}</p>
+                <p>LaTeX: ${expr4.toLatex()}</p>
+            `;
+
+            // Test 5: Complex mixed operators
+            const expr5 = new BooleanExpression("a and b or (b xor c)");
+            output.innerHTML += `
+                <h2>Test 5: a and b or (b xor c)</h2>
+                <p>Variables: ${expr5.variables.join(', ')}</p>
+                <p>Normalized: ${expr5.normalizedExpression}</p>
+                <p>AST Type: ${expr5.ast.type}</p>
+                <p>Truth Table Rows: ${expr5.truthTable.length}</p>
+                <p>LaTeX: ${expr5.toLatex()}</p>
+            `;
+
+            // Test 6: NOR and XNOR
+            const expr6 = new BooleanExpression("a nor b xnor c");
+            output.innerHTML += `
+                <h2>Test 6: a nor b xnor c</h2>
+                <p>Variables: ${expr6.variables.join(', ')}</p>
+                <p>Normalized: ${expr6.normalizedExpression}</p>
+                <p>AST Type: ${expr6.ast.type}</p>
+                <p>Truth Table Rows: ${expr6.truthTable.length}</p>
+                <p>LaTeX: ${expr6.toLatex()}</p>
+            `;
+            
+            // Test 7: Visualizer with mixed operators
+            const visualizer = new Visualizer(expr5);
+            output.innerHTML += `
+                <h2>Test 7: Visualizer with mixed operators</h2>
                 <p>Visualizer created successfully</p>
                 <p>Variables from visualizer: ${visualizer.variables.join(', ')}</p>
                 <p>Truth table rows: ${visualizer.truthTable.length}</p>

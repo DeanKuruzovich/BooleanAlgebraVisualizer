@@ -61,62 +61,69 @@ class Visualizer {
   }
 
   /**
-   * Setup zoom and pan functionality for SVG
+   * Setup zoom and pan functionality for SVG - centers zoom on mouse position
    */
   setupZoomPan(svgElement, group) {
     let scale = 1;
     let panning = false;
     let startX = 0;
     let startY = 0;
-    let currentX = 0;
-    let currentY = 0;
-
-    const rect = svgElement.getBoundingClientRect();
-    const centerX = rect.width / 2;
-    const centerY = rect.height / 2;
+    let translateX = 0;
+    let translateY = 0;
 
     const updateTransform = () => {
-      group.setAttribute('transform', 
-        `translate(${centerX}, ${centerY}) scale(${scale}) translate(${-centerX + currentX}, ${-centerY + currentY})`
-      );
+      group.setAttribute('transform', `translate(${translateX}, ${translateY}) scale(${scale})`);
     };
 
-    // Zoom with scroll
+    // Zoom with scroll - centered on mouse position
     svgElement.addEventListener('wheel', (e) => {
       e.preventDefault();
       const rect = svgElement.getBoundingClientRect();
-      const centerX = rect.width / 2;
-      const centerY = rect.height / 2;
-      const delta = e.deltaY > 0 ? 0.95 : 1.05;
-      scale *= delta;
-      scale = Math.min(Math.max(scale, 0.5), 3);
-      currentX = centerX - (centerX - currentX) / delta;
-      currentY = centerY - (centerY - currentY) / delta;
+      
+      // Get mouse position relative to SVG
+      const mouseX = e.clientX - rect.left;
+      const mouseY = e.clientY - rect.top;
+      
+      // Calculate zoom
+      const delta = e.deltaY > 0 ? 0.9 : 1.1;
+      const newScale = Math.min(Math.max(scale * delta, 0.3), 5);
+      
+      // Adjust translation to zoom toward mouse position
+      const scaleChange = newScale / scale;
+      translateX = mouseX - (mouseX - translateX) * scaleChange;
+      translateY = mouseY - (mouseY - translateY) * scaleChange;
+      
+      scale = newScale;
       updateTransform();
     });
 
     // Pan with mouse drag
     svgElement.addEventListener('mousedown', (e) => {
       panning = true;
-      startX = e.clientX - currentX;
-      startY = e.clientY - currentY;
+      startX = e.clientX - translateX;
+      startY = e.clientY - translateY;
+      svgElement.style.cursor = 'grabbing';
     });
 
     svgElement.addEventListener('mousemove', (e) => {
       if (panning) {
-        currentX = e.clientX - startX;
-        currentY = e.clientY - startY;
+        translateX = e.clientX - startX;
+        translateY = e.clientY - startY;
         updateTransform();
       }
     });
 
     svgElement.addEventListener('mouseup', () => {
       panning = false;
+      svgElement.style.cursor = 'grab';
     });
 
     svgElement.addEventListener('mouseleave', () => {
       panning = false;
+      svgElement.style.cursor = 'grab';
     });
+    
+    svgElement.style.cursor = 'grab';
   }
 
   /**
@@ -126,6 +133,7 @@ class Visualizer {
     const ns = 'http://www.w3.org/2000/svg';
     const spacing = 200;
     const verticalSpacing = 120;
+    const distanceFromMid=21;
 
     if (ast.type === 'VAR') {
       // Draw variable node box
@@ -155,7 +163,7 @@ class Visualizer {
       line.setAttribute('y1', y);
       line.setAttribute('x2', x + 75);
       line.setAttribute('y2', y);
-      line.setAttribute('stroke', '#333');
+      line.setAttribute('stroke', '#000000');
       line.setAttribute('stroke-width', '3.5');
       svg.appendChild(line);
 
@@ -179,10 +187,10 @@ class Visualizer {
       const rightX = this.renderGateTree(svg, ast.right, x, rightY, depth + 1);
       
       const gateX = Math.max(leftX, rightX) + spacing;
-      this.drawAndGate(svg, gateX, y);
+      this.drawAndGate(svg, gateX, y+1.4);
       
-      this.connectLineOrthogonal(svg, leftX, leftY, gateX - 50, y - 35);
-      this.connectLineOrthogonal(svg, rightX, rightY, gateX - 50, y + 35);
+      this.connectLineOrthogonal(svg, leftX, leftY, gateX - 50, y - distanceFromMid-2);
+      this.connectLineOrthogonal(svg, rightX, rightY, gateX - 50, y + distanceFromMid+2);
       
       return gateX + 60;
     }
@@ -196,8 +204,68 @@ class Visualizer {
       const gateX = Math.max(leftX, rightX) + spacing;
       this.drawOrGate(svg, gateX, y);
       
-      this.connectLineOrthogonal(svg, leftX, leftY, gateX - 50, y - 35);
-      this.connectLineOrthogonal(svg, rightX, rightY, gateX - 50, y + 35);
+      this.connectLineOrthogonal(svg, leftX, leftY, gateX - 50, y - distanceFromMid);
+      this.connectLineOrthogonal(svg, rightX, rightY, gateX - 50, y + distanceFromMid);
+      
+      return gateX + 60;
+    }
+
+    if (ast.type === 'NAND') {
+      const leftY = y - verticalSpacing;
+      const rightY = y + verticalSpacing;
+      const leftX = this.renderGateTree(svg, ast.left, x, leftY, depth + 1);
+      const rightX = this.renderGateTree(svg, ast.right, x, rightY, depth + 1);
+      
+      const gateX = Math.max(leftX, rightX) + spacing;
+      this.drawNandGate(svg, gateX, y+1.4);
+      
+      this.connectLineOrthogonal(svg, leftX, leftY, gateX - 50, y - distanceFromMid-2);
+      this.connectLineOrthogonal(svg, rightX, rightY, gateX - 50, y + distanceFromMid+2);
+      
+      return gateX + 60;
+    }
+
+    if (ast.type === 'NOR') {
+      const leftY = y - verticalSpacing;
+      const rightY = y + verticalSpacing;
+      const leftX = this.renderGateTree(svg, ast.left, x, leftY, depth + 1);
+      const rightX = this.renderGateTree(svg, ast.right, x, rightY, depth + 1);
+      
+      const gateX = Math.max(leftX, rightX) + spacing;
+      this.drawNorGate(svg, gateX, y);
+      
+      this.connectLineOrthogonal(svg, leftX, leftY, gateX - 50, y - distanceFromMid);
+      this.connectLineOrthogonal(svg, rightX, rightY, gateX - 50, y + distanceFromMid);
+      
+      return gateX + 60;
+    }
+
+    if (ast.type === 'XOR') {
+      const leftY = y - verticalSpacing;
+      const rightY = y + verticalSpacing;
+      const leftX = this.renderGateTree(svg, ast.left, x, leftY, depth + 1);
+      const rightX = this.renderGateTree(svg, ast.right, x, rightY, depth + 1);
+      
+      const gateX = Math.max(leftX, rightX) + spacing;
+      this.drawXorGate(svg, gateX, y);
+      
+      this.connectLineOrthogonal(svg, leftX, leftY, gateX - 50, y - distanceFromMid);
+      this.connectLineOrthogonal(svg, rightX, rightY, gateX - 50, y + distanceFromMid);
+      
+      return gateX + 60;
+    }
+
+    if (ast.type === 'XNOR') {
+      const leftY = y - verticalSpacing;
+      const rightY = y + verticalSpacing;
+      const leftX = this.renderGateTree(svg, ast.left, x, leftY, depth + 1);
+      const rightX = this.renderGateTree(svg, ast.right, x, rightY, depth + 1);
+      
+      const gateX = Math.max(leftX, rightX) + spacing;
+      this.drawXnorGate(svg, gateX, y);
+      
+      this.connectLineOrthogonal(svg, leftX, leftY, gateX - 50, y - distanceFromMid);
+      this.connectLineOrthogonal(svg, rightX, rightY, gateX - 50, y + distanceFromMid);
       
       return gateX + 60;
     }
@@ -223,7 +291,35 @@ class Visualizer {
    * Draw NOT gate using image
    */
   drawNotGate(svg, x, y) {
-    this.drawGateImage(svg, x, y, 'not.png', 'NOT');
+    this.drawGateImage(svg, x+0.5, y-1, 'not.png', 'NOT');
+  }
+
+  /**
+   * Draw NAND gate using image
+   */
+  drawNandGate(svg, x, y) {
+    this.drawGateImage(svg, x, y, 'nand.png', 'NAND');
+  }
+
+  /**
+   * Draw NOR gate using image
+   */
+  drawNorGate(svg, x, y) {
+    this.drawGateImage(svg, x, y, 'nor.png', 'NOR');
+  }
+
+  /**
+   * Draw XOR gate using image
+   */
+  drawXorGate(svg, x, y) {
+    this.drawGateImage(svg, x, y, 'xor.png', 'XOR');
+  }
+
+  /**
+   * Draw XNOR gate using image
+   */
+  drawXnorGate(svg, x, y) {
+    this.drawGateImage(svg, x, y, 'xnor.png', 'XNOR');
   }
 
   /**
@@ -287,302 +383,759 @@ class Visualizer {
     line3.setAttribute('stroke-width', '3.5');
     svg.appendChild(line3);
   }
+
+  // ============================================================
+  // CMOS LOGIC: Correct PDN/PUN with Duality
+  // ============================================================
+
   /**
-   * Extract SOP (Sum of Products) terms from AST
-   * Returns array of AND terms (as array of literals) representing OR-of-ANDs
-   * Each literal has: var (variable name), inverted (boolean)
-   *   inverted=true means the literal is 'var (complement)
-   *   inverted=false means the literal is var (plain signal)
-   * 
-   * CMOS Gate Signals:
-   *   Both NMOS and PMOS receive same gate signal labels from extracted literals
-   *   NMOS: conducts (pulls down) when gate = 1
-   *   PMOS: conducts (pulls up) when gate = 0
-   *   Topology: PMOS in series stages (implements SOP), NMOS in parallel chains (implements dual)
+   * Push NOTs down to leaves using De Morgan's laws, then REMOVE them
+   * This expands NAND/NOR/XOR/XNOR to AND/OR form
+   * Returns an AST with only AND, OR, and VAR nodes
    */
-  extractSOP(node) {
-    if (!node) return [];
-    if (node.type === 'VAR') return [[{ var: node.value, inverted: false }]];
+  expandToAndOr(node) {
+    if (!node) return node;
+
+    if (node.type === 'VAR') {
+      return node;
+    }
+
+    // NOT - apply De Morgan or double-negation
     if (node.type === 'NOT') {
-      const inner = this.extractSOP(node.operand);
-      return inner.map(term => term.map(lit => ({ ...lit, inverted: !lit.inverted })));
+      const inner = node.operand;
+      
+      // NOT(NOT(x)) = x
+      if (inner.type === 'NOT') {
+        return this.expandToAndOr(inner.operand);
+      }
+      
+      // NOT(VAR) - keep as is (will handle in PDN building)
+      if (inner.type === 'VAR') {
+        return node;
+      }
+      
+      // De Morgan: NOT(AND(a,b)) = OR(NOT(a), NOT(b))
+      if (inner.type === 'AND') {
+        return this.expandToAndOr({
+          type: 'OR',
+          left: { type: 'NOT', operand: inner.left },
+          right: { type: 'NOT', operand: inner.right }
+        });
+      }
+      
+      // De Morgan: NOT(OR(a,b)) = AND(NOT(a), NOT(b))
+      if (inner.type === 'OR') {
+        return this.expandToAndOr({
+          type: 'AND',
+          left: { type: 'NOT', operand: inner.left },
+          right: { type: 'NOT', operand: inner.right }
+        });
+      }
+      
+      // NOT(NAND(a,b)) = AND(a,b)
+      if (inner.type === 'NAND') {
+        return this.expandToAndOr({
+          type: 'AND',
+          left: inner.left,
+          right: inner.right
+        });
+      }
+      
+      // NOT(NOR(a,b)) = OR(a,b)
+      if (inner.type === 'NOR') {
+        return this.expandToAndOr({
+          type: 'OR',
+          left: inner.left,
+          right: inner.right
+        });
+      }
+      
+      // NOT(XOR(a,b)) = XNOR - expand
+      if (inner.type === 'XOR') {
+        return this.expandToAndOr({
+          type: 'OR',
+          left: { type: 'AND', left: inner.left, right: inner.right },
+          right: { 
+            type: 'AND', 
+            left: { type: 'NOT', operand: inner.left },
+            right: { type: 'NOT', operand: inner.right }
+          }
+        });
+      }
+      
+      // NOT(XNOR(a,b)) = XOR - expand
+      if (inner.type === 'XNOR') {
+        return this.expandToAndOr({
+          type: 'OR',
+          left: { type: 'AND', left: inner.left, right: { type: 'NOT', operand: inner.right } },
+          right: { type: 'AND', left: { type: 'NOT', operand: inner.left }, right: inner.right }
+        });
+      }
     }
-    if (node.type === 'AND') {
-      const left = this.extractSOP(node.left);
-      const right = this.extractSOP(node.right);
-      return left.flatMap(l => right.map(r => [...l, ...r]));
+    
+    // NAND(a,b) = NOT(AND(a,b)) - expand via De Morgan to OR(NOT a, NOT b)
+    if (node.type === 'NAND') {
+      return this.expandToAndOr({
+        type: 'OR',
+        left: { type: 'NOT', operand: node.left },
+        right: { type: 'NOT', operand: node.right }
+      });
     }
-    if (node.type === 'OR') {
-      return [...this.extractSOP(node.left), ...this.extractSOP(node.right)];
+    
+    // NOR(a,b) = NOT(OR(a,b)) - expand via De Morgan to AND(NOT a, NOT b)
+    if (node.type === 'NOR') {
+      return this.expandToAndOr({
+        type: 'AND',
+        left: { type: 'NOT', operand: node.left },
+        right: { type: 'NOT', operand: node.right }
+      });
     }
-    return [];
+    
+    // XOR(a,b) = (a AND NOT b) OR (NOT a AND b)
+    if (node.type === 'XOR') {
+      return this.expandToAndOr({
+        type: 'OR',
+        left: { type: 'AND', left: node.left, right: { type: 'NOT', operand: node.right } },
+        right: { type: 'AND', left: { type: 'NOT', operand: node.left }, right: node.right }
+      });
+    }
+    
+    // XNOR(a,b) = (a AND b) OR (NOT a AND NOT b)
+    if (node.type === 'XNOR') {
+      return this.expandToAndOr({
+        type: 'OR',
+        left: { type: 'AND', left: node.left, right: node.right },
+        right: { 
+          type: 'AND', 
+          left: { type: 'NOT', operand: node.left },
+          right: { type: 'NOT', operand: node.right }
+        }
+      });
+    }
+    
+    // AND and OR: recurse on children
+    if (node.type === 'AND' || node.type === 'OR') {
+      return {
+        type: node.type,
+        left: this.expandToAndOr(node.left),
+        right: this.expandToAndOr(node.right)
+      };
+    }
+    
+    return node;
   }
 
   /**
-   * Render CMOS implementation diagram with proper complementary logic
+   * Build PDN tree structure from expanded AST
+   * PDN conducts when output should be 0 (pulls down to GND)
+   * For function F: PDN implements NOT(F)
+   *   - OR in F → parallel NMOS in PDN (either path pulls down)
+   *   - AND in F → series NMOS in PDN (both needed to pull down)
    * 
-   * Truth Table Output Match:
-   *   The output node is driven by the PMOS/NMOS complementary logic.
-   *   PMOS (pull-up) is series of parallel chains: implements OR of ANDs (SOP)
-   *   NMOS (pull-down) is parallel of series chains: implements dual topology (AND of ORs)
-   *   Output equals direct evaluation of the AST (no inversion)
+   * We use DIRECT variable names (A, B, C) not inverted ones
+   * The output of this network is F_bar, so we add an inverter at the end
+   */
+  buildPDNTree(node) {
+    if (!node) return null;
+
+    // Variable: single NMOS with gate = variable (direct, not inverted!)
+    if (node.type === 'VAR') {
+      return { type: 'device', deviceType: 'nmos', gate: node.value.toUpperCase() };
+    }
+
+    // NOT(VAR): For PDN, NOT(x) means we need x' to conduct
+    // But we want to use direct signals, so this creates a complementary path
+    // In practice, NOT at leaves means the signal is inverted - we'll mark it
+    if (node.type === 'NOT' && node.operand.type === 'VAR') {
+      return { type: 'device', deviceType: 'nmos', gate: node.operand.value.toUpperCase(), inverted: true };
+    }
+
+    // OR → parallel connection in PDN (either path can pull down)
+    if (node.type === 'OR') {
+      return {
+        type: 'parallel',
+        children: [this.buildPDNTree(node.left), this.buildPDNTree(node.right)]
+      };
+    }
+
+    // AND → series connection in PDN (both paths must conduct to pull down)
+    if (node.type === 'AND') {
+      return {
+        type: 'series',
+        children: [this.buildPDNTree(node.left), this.buildPDNTree(node.right)]
+      };
+    }
+
+    return null;
+  }
+
+  /**
+   * Dualize a network tree: swap series↔parallel, nmos↔pmos
+   * Gate signals stay the same!
+   */
+  dualizePDNtoPUN(pdnNode) {
+    if (!pdnNode) return null;
+
+    // Device: swap nmos → pmos, keep same gate signal
+    if (pdnNode.type === 'device') {
+      return {
+        type: 'device',
+        deviceType: 'pmos',
+        gate: pdnNode.gate,
+        inverted: pdnNode.inverted  // Keep inversion flag
+      };
+    }
+
+    // Series → Parallel
+    if (pdnNode.type === 'series') {
+      return {
+        type: 'parallel',
+        children: pdnNode.children.map(c => this.dualizePDNtoPUN(c))
+      };
+    }
+
+    // Parallel → Series
+    if (pdnNode.type === 'parallel') {
+      return {
+        type: 'series',
+        children: pdnNode.children.map(c => this.dualizePDNtoPUN(c))
+      };
+    }
+
+    return null;
+  }
+
+  /**
+   * Render CMOS implementation diagram
    * 
-   * Gate Signal Derivation:
-   *   Extracted SOP literals directly label transistor gates
-   *   literal.inverted=true → gate label shows 'var (complement)
-   *   literal.inverted=false → gate label shows var (plain signal)
+   * Algorithm:
+   * 1. Expand F to AND/OR/NOT form
+   * 2. Build PDN from F: OR→parallel, AND→series (NMOS)
+   * 3. Dualize PDN to get PUN: swap series↔parallel, NMOS→PMOS
+   * 4. This gives F_bar at output node
+   * 5. Add inverter to get final output F
    */
   renderCMOSDiagram(svgElement) {
     svgElement.innerHTML = '';
     const ns = 'http://www.w3.org/2000/svg';
-    svgElement.setAttribute('viewBox', '0 0 1200 600');
+    svgElement.setAttribute('viewBox', '0 0 1800 1200');
 
     const bg = document.createElementNS(ns, 'rect');
-    bg.setAttribute('width', '1200');
-    bg.setAttribute('height', '600');
+    bg.setAttribute('width', '1800');
+    bg.setAttribute('height', '1200');
     bg.setAttribute('fill', 'white');
     svgElement.appendChild(bg);
 
     const g = document.createElementNS(ns, 'g');
+    g.setAttribute('id', 'cmosGroup');
 
-    // Extract SOP form: each term is AND of literals, SOP is OR of terms
-    const sopTerms = this.extractSOP(this.ast);
+    // Layout parameters
+    const mainCenterX = 600;
+    const inverterX = 1400;
+    const vddY = 80;
+    const gndY = 1120;
+    const outputY = 600;
+    const transistorSpacingH = 180;
+    const transistorSpacingV = 140;
 
-    const vddY = 40;
-    const gndY = 560;
-    const outputY = 300;
-    const transistorHeight = 50;
-    const transistorWidth = 80;
-    const stageHeight = 90;
-    const parallelSpacing = 100;
+    // Step 1: Expand F to AND/OR form
+    const expandedF = this.expandToAndOr(this.ast);
+    
+    // Step 2: Build PDN from F
+    const pdnTree = this.buildPDNTree(expandedF);
+    
+    // Step 3: Dualize PDN to get PUN
+    const punTree = this.dualizePDNtoPUN(pdnTree);
 
-    // Draw VDD/GND rails
-    const vddLine = document.createElementNS(ns, 'line');
-    vddLine.setAttribute('x1', '40');
-    vddLine.setAttribute('y1', vddY);
-    vddLine.setAttribute('x2', '1160');
-    vddLine.setAttribute('y2', vddY);
-    vddLine.setAttribute('stroke', '#000');
-    vddLine.setAttribute('stroke-width', '4.5');
-    g.appendChild(vddLine);
+    // ============================================
+    // MAIN NETWORK (produces F_bar)
+    // ============================================
+    
+    // Draw VDD symbol for main network
+    this.drawVDDSymbol(g, mainCenterX, vddY);
 
-    const vddLabel = document.createElementNS(ns, 'text');
-    vddLabel.setAttribute('x', '10');
-    vddLabel.setAttribute('y', vddY + 5);
-    vddLabel.setAttribute('font-size', '14');
-    vddLabel.setAttribute('font-weight', 'bold');
-    vddLabel.textContent = 'VDD';
-    g.appendChild(vddLabel);
+    // Draw GND symbol for main network
+    this.drawGNDSymbol(g, mainCenterX, gndY);
 
-    const gndLine = document.createElementNS(ns, 'line');
-    gndLine.setAttribute('x1', '40');
-    gndLine.setAttribute('y1', gndY);
-    gndLine.setAttribute('x2', '1160');
-    gndLine.setAttribute('y2', gndY);
-    gndLine.setAttribute('stroke', '#000');
-    gndLine.setAttribute('stroke-width', '4.5');
-    g.appendChild(gndLine);
+    // Render PUN (PMOS pull-up network) - between VDD and output
+    const punStartY = vddY + 100;
+    const punResult = this.renderCMOSTree(g, punTree, mainCenterX, punStartY, transistorSpacingH, transistorSpacingV);
+    
+    // Connect VDD to PUN top
+    const vddToPun = document.createElementNS(ns, 'line');
+    vddToPun.setAttribute('x1', mainCenterX);
+    vddToPun.setAttribute('y1', vddY);
+    vddToPun.setAttribute('x2', punResult.topX);
+    vddToPun.setAttribute('y2', punResult.topY);
+    vddToPun.setAttribute('stroke', '#000');
+    vddToPun.setAttribute('stroke-width', '3');
+    g.appendChild(vddToPun);
+    
+    // Connect PUN bottom to output node
+    const punToOut = document.createElementNS(ns, 'line');
+    punToOut.setAttribute('x1', punResult.bottomX);
+    punToOut.setAttribute('y1', punResult.bottomY);
+    punToOut.setAttribute('x2', mainCenterX);
+    punToOut.setAttribute('y2', outputY);
+    punToOut.setAttribute('stroke', '#000');
+    punToOut.setAttribute('stroke-width', '3');
+    g.appendChild(punToOut);
 
-    const gndLabel = document.createElementNS(ns, 'text');
-    gndLabel.setAttribute('x', '5');
-    gndLabel.setAttribute('y', gndY + 5);
-    gndLabel.setAttribute('font-size', '14');
-    gndLabel.setAttribute('font-weight', 'bold');
-    gndLabel.textContent = 'GND';
-    g.appendChild(gndLabel);
+    // Render PDN (NMOS pull-down network) - between output and GND
+    const pdnStartY = outputY + 120;
+    const pdnResult = this.renderCMOSTree(g, pdnTree, mainCenterX, pdnStartY, transistorSpacingH, transistorSpacingV);
+    
+    // Connect output to PDN top
+    const outToPdn = document.createElementNS(ns, 'line');
+    outToPdn.setAttribute('x1', mainCenterX);
+    outToPdn.setAttribute('y1', outputY);
+    outToPdn.setAttribute('x2', pdnResult.topX);
+    outToPdn.setAttribute('y2', pdnResult.topY);
+    outToPdn.setAttribute('stroke', '#000');
+    outToPdn.setAttribute('stroke-width', '3');
+    g.appendChild(outToPdn);
 
-    // Output node
-    const outCircle = document.createElementNS(ns, 'circle');
-    outCircle.setAttribute('cx', '1050');
-    outCircle.setAttribute('cy', outputY);
-    outCircle.setAttribute('r', '5');
-    outCircle.setAttribute('fill', '#000');
-    g.appendChild(outCircle);
+    // Connect PDN bottom to GND
+    const pdnToGnd = document.createElementNS(ns, 'line');
+    pdnToGnd.setAttribute('x1', pdnResult.bottomX);
+    pdnToGnd.setAttribute('y1', pdnResult.bottomY);
+    pdnToGnd.setAttribute('x2', mainCenterX);
+    pdnToGnd.setAttribute('y2', gndY - 30);
+    pdnToGnd.setAttribute('stroke', '#000');
+    pdnToGnd.setAttribute('stroke-width', '3');
+    g.appendChild(pdnToGnd);
 
-    const outLabel = document.createElementNS(ns, 'text');
-    outLabel.setAttribute('x', '1070');
-    outLabel.setAttribute('y', outputY + 5);
-    outLabel.setAttribute('font-size', '14');
-    outLabel.setAttribute('font-weight', 'bold');
-    outLabel.textContent = 'Out';
-    g.appendChild(outLabel);
+    // F_bar node (intermediate output)
+    const fBarCircle = document.createElementNS(ns, 'circle');
+    fBarCircle.setAttribute('cx', mainCenterX);
+    fBarCircle.setAttribute('cy', outputY);
+    fBarCircle.setAttribute('r', '6');
+    fBarCircle.setAttribute('fill', '#000');
+    g.appendChild(fBarCircle);
 
-    // ===== PMOS: Series stages of parallel transistors =====
-    let currentPmosY = vddY + 60;
-    let previousStageBottomX = 600; // Center column for series connections
+    // ============================================
+    // CONNECTION LINE TO INVERTER
+    // ============================================
+    const connLineY = outputY;
+    const connLine = document.createElementNS(ns, 'line');
+    connLine.setAttribute('x1', mainCenterX);
+    connLine.setAttribute('y1', connLineY);
+    connLine.setAttribute('x2', inverterX - 120);
+    connLine.setAttribute('y2', connLineY);
+    connLine.setAttribute('stroke', '#000');
+    connLine.setAttribute('stroke-width', '3');
+    g.appendChild(connLine);
 
-    sopTerms.forEach((term, stageIdx) => {
-      const termLength = term.length;
-      const stageY = currentPmosY;
-      
-      // Parallel transistors in this stage
-      const startX = 600 - (termLength - 1) * parallelSpacing / 2;
+    // F_bar label
+    const fBarLabel = document.createElementNS(ns, 'text');
+    fBarLabel.setAttribute('x', (mainCenterX + inverterX - 120) / 2);
+    fBarLabel.setAttribute('y', connLineY - 15);
+    fBarLabel.setAttribute('font-size', '16');
+    fBarLabel.setAttribute('font-weight', 'bold');
+    fBarLabel.setAttribute('text-anchor', 'middle');
+    fBarLabel.textContent = 'F̄';
+    g.appendChild(fBarLabel);
 
-      term.forEach((literal, idx) => {
-        const transistorX = startX + idx * parallelSpacing;
-        
-        // Draw PMOS transistor with correct gate signal
-        // Gate signal: if literal is inverted (var'), show var'; otherwise show var
-        // PMOS pulls up (conducts) when gate = 0, so labels reflect the signal on gate
-        this.drawCMOSTransistor(g, transistorX, stageY, 'PMOS',
-          literal.inverted ? `${literal.var}'` : literal.var);
+    // ============================================
+    // OUTPUT INVERTER (converts F_bar to F)
+    // ============================================
+    const invVddY = outputY - 200;
+    const invGndY = outputY + 200;
+    const invMidY = outputY;
 
-        // Connect to VDD (from above)
-        if (stageIdx === 0) {
-          const vddConn = document.createElementNS(ns, 'line');
-          vddConn.setAttribute('x1', transistorX);
-          vddConn.setAttribute('y1', vddY);
-          vddConn.setAttribute('x2', transistorX);
-          vddConn.setAttribute('y2', stageY - transistorHeight / 2);
-          vddConn.setAttribute('stroke', '#000');
-          vddConn.setAttribute('stroke-width', '2.5');
-          g.appendChild(vddConn);
-        } else {
-          // Connect from previous stage
-          const prevConn = document.createElementNS(ns, 'line');
-          prevConn.setAttribute('x1', transistorX);
-          prevConn.setAttribute('y1', stageY - stageHeight + transistorHeight / 2);
-          prevConn.setAttribute('x2', transistorX);
-          prevConn.setAttribute('y2', stageY - transistorHeight / 2);
-          prevConn.setAttribute('stroke', '#000');
-          prevConn.setAttribute('stroke-width', '2.5');
-          g.appendChild(prevConn);
-        }
+    // Inverter VDD
+    this.drawVDDSymbol(g, inverterX, invVddY);
 
-        // Horizontal connection to center node (series connection)
-        const horizLine = document.createElementNS(ns, 'line');
-        horizLine.setAttribute('x1', transistorX);
-        horizLine.setAttribute('y1', stageY + transistorHeight / 2);
-        horizLine.setAttribute('x2', 600);
-        horizLine.setAttribute('y2', stageY + transistorHeight / 2);
-        horizLine.setAttribute('stroke', '#000');
-        horizLine.setAttribute('stroke-width', '2.5');
-        g.appendChild(horizLine);
-      });
+    // Inverter GND
+    this.drawGNDSymbol(g, inverterX, invGndY);
 
-      // Vertical series connection to next stage or output
-      if (stageIdx < sopTerms.length - 1) {
-        const vertLine = document.createElementNS(ns, 'line');
-        vertLine.setAttribute('x1', '600');
-        vertLine.setAttribute('y1', stageY + transistorHeight / 2);
-        vertLine.setAttribute('x2', '600');
-        vertLine.setAttribute('y2', stageY + stageHeight - transistorHeight / 2);
-        vertLine.setAttribute('stroke', '#000');
-        vertLine.setAttribute('stroke-width', '2.5');
-        g.appendChild(vertLine);
-      } else {
-        // Last stage connects to output
-        const lastConn = document.createElementNS(ns, 'line');
-        lastConn.setAttribute('x1', '600');
-        lastConn.setAttribute('y1', stageY + transistorHeight / 2);
-        lastConn.setAttribute('x2', '600');
-        lastConn.setAttribute('y2', outputY);
-        lastConn.setAttribute('stroke', '#000');
-        lastConn.setAttribute('stroke-width', '2.5');
-        g.appendChild(lastConn);
+    // PMOS for inverter (between VDD and output)
+    const pmosY = outputY - 80;
+    this.drawCMOSTransistor(g, inverterX, pmosY, 'PMOS', 'F̄');
+    
+    // Connect inverter VDD to PMOS
+    const invVddToPmos = document.createElementNS(ns, 'line');
+    invVddToPmos.setAttribute('x1', inverterX);
+    invVddToPmos.setAttribute('y1', invVddY);
+    invVddToPmos.setAttribute('x2', inverterX);
+    invVddToPmos.setAttribute('y2', pmosY - 40);
+    invVddToPmos.setAttribute('stroke', '#000');
+    invVddToPmos.setAttribute('stroke-width', '3');
+    g.appendChild(invVddToPmos);
 
-        const horizToOut = document.createElementNS(ns, 'line');
-        horizToOut.setAttribute('x1', '600');
-        horizToOut.setAttribute('y1', outputY);
-        horizToOut.setAttribute('x2', '1050');
-        horizToOut.setAttribute('y2', outputY);
-        horizToOut.setAttribute('stroke', '#000');
-        horizToOut.setAttribute('stroke-width', '2.5');
-        g.appendChild(horizToOut);
-      }
+    // NMOS for inverter (between output and GND)
+    const nmosY = outputY + 80;
+    this.drawCMOSTransistor(g, inverterX, nmosY, 'NMOS', 'F̄');
+    
+    // Connect NMOS to inverter GND
+    const invNmosToGnd = document.createElementNS(ns, 'line');
+    invNmosToGnd.setAttribute('x1', inverterX);
+    invNmosToGnd.setAttribute('y1', nmosY + 40);
+    invNmosToGnd.setAttribute('x2', inverterX);
+    invNmosToGnd.setAttribute('y2', invGndY - 30);
+    invNmosToGnd.setAttribute('stroke', '#000');
+    invNmosToGnd.setAttribute('stroke-width', '3');
+    g.appendChild(invNmosToGnd);
 
-      currentPmosY += stageHeight;
-    });
+    // Connect PMOS to output node
+    const pmosToInvOut = document.createElementNS(ns, 'line');
+    pmosToInvOut.setAttribute('x1', inverterX);
+    pmosToInvOut.setAttribute('y1', pmosY + 40);
+    pmosToInvOut.setAttribute('x2', inverterX);
+    pmosToInvOut.setAttribute('y2', invMidY);
+    pmosToInvOut.setAttribute('stroke', '#000');
+    pmosToInvOut.setAttribute('stroke-width', '3');
+    g.appendChild(pmosToInvOut);
 
-    // ===== NMOS: Parallel chains of series transistors =====
-    sopTerms.forEach((term, chainIdx) => {
-      const chainX = 150 + chainIdx * 180;
-      const termLength = term.length;
-      const chainStartY = outputY + 50;
+    // Connect output node to NMOS
+    const invOutToNmos = document.createElementNS(ns, 'line');
+    invOutToNmos.setAttribute('x1', inverterX);
+    invOutToNmos.setAttribute('y1', invMidY);
+    invOutToNmos.setAttribute('x2', inverterX);
+    invOutToNmos.setAttribute('y2', nmosY - 40);
+    invOutToNmos.setAttribute('stroke', '#000');
+    invOutToNmos.setAttribute('stroke-width', '3');
+    g.appendChild(invOutToNmos);
 
-      // Series chain for this term
-      term.forEach((literal, idx) => {
-        const transistorY = chainStartY + idx * transistorHeight;
+    // Gate input line to both transistors (from F_bar)
+    const gateLineStartX = inverterX - 120;
+    
+    // Vertical line at gate input
+    const gateVertLine = document.createElementNS(ns, 'line');
+    gateVertLine.setAttribute('x1', gateLineStartX);
+    gateVertLine.setAttribute('y1', pmosY);
+    gateVertLine.setAttribute('x2', gateLineStartX);
+    gateVertLine.setAttribute('y2', nmosY);
+    gateVertLine.setAttribute('stroke', '#000');
+    gateVertLine.setAttribute('stroke-width', '2');
+    g.appendChild(gateVertLine);
 
-        // Draw NMOS transistor with correct gate signal
-        // Gate signal: if literal is inverted (var'), show var'; otherwise show var
-        // NMOS pulls down (conducts) when gate = 1, so labels reflect the signal on gate
-        this.drawCMOSTransistor(g, chainX, transistorY, 'NMOS',
-          literal.inverted ? `${literal.var}'` : literal.var);
+    // Final output line and node
+    const finalOutputX = inverterX + 150;
+    const finalOutLine = document.createElementNS(ns, 'line');
+    finalOutLine.setAttribute('x1', inverterX);
+    finalOutLine.setAttribute('y1', invMidY);
+    finalOutLine.setAttribute('x2', finalOutputX);
+    finalOutLine.setAttribute('y2', invMidY);
+    finalOutLine.setAttribute('stroke', '#000');
+    finalOutLine.setAttribute('stroke-width', '3');
+    g.appendChild(finalOutLine);
 
-        // Vertical series connections
-        if (idx < term.length - 1) {
-          const seriesLine = document.createElementNS(ns, 'line');
-          seriesLine.setAttribute('x1', chainX);
-          seriesLine.setAttribute('y1', transistorY + transistorHeight / 2);
-          seriesLine.setAttribute('x2', chainX);
-          seriesLine.setAttribute('y2', transistorY + transistorHeight);
-          seriesLine.setAttribute('stroke', '#000');
-          seriesLine.setAttribute('stroke-width', '2.5');
-          g.appendChild(seriesLine);
-        }
-      });
+    // Final output node
+    const finalOutCircle = document.createElementNS(ns, 'circle');
+    finalOutCircle.setAttribute('cx', finalOutputX);
+    finalOutCircle.setAttribute('cy', invMidY);
+    finalOutCircle.setAttribute('r', '8');
+    finalOutCircle.setAttribute('fill', '#000');
+    g.appendChild(finalOutCircle);
 
-      // Connect top of chain to output
-      const topConn = document.createElementNS(ns, 'line');
-      topConn.setAttribute('x1', chainX);
-      topConn.setAttribute('y1', chainStartY - transistorHeight / 2);
-      topConn.setAttribute('x2', chainX);
-      topConn.setAttribute('y2', outputY);
-      topConn.setAttribute('stroke', '#000');
-      topConn.setAttribute('stroke-width', '2.5');
-      g.appendChild(topConn);
+    // Final output label
+    const finalOutLabel = document.createElementNS(ns, 'text');
+    finalOutLabel.setAttribute('x', finalOutputX + 20);
+    finalOutLabel.setAttribute('y', invMidY + 6);
+    finalOutLabel.setAttribute('font-size', '20');
+    finalOutLabel.setAttribute('font-weight', 'bold');
+    finalOutLabel.textContent = 'Y = F';
+    g.appendChild(finalOutLabel);
 
-      const horizToOut = document.createElementNS(ns, 'line');
-      horizToOut.setAttribute('x1', chainX);
-      horizToOut.setAttribute('y1', outputY);
-      horizToOut.setAttribute('x2', '1050');
-      horizToOut.setAttribute('y2', outputY);
-      horizToOut.setAttribute('stroke', '#000');
-      horizToOut.setAttribute('stroke-width', '2.5');
-      g.appendChild(horizToOut);
+    // ============================================
+    // LABELS
+    // ============================================
+    
+    // Main network labels
+    const punLabel = document.createElementNS(ns, 'text');
+    punLabel.setAttribute('x', 50);
+    punLabel.setAttribute('y', (vddY + outputY) / 2);
+    punLabel.setAttribute('font-size', '16');
+    punLabel.setAttribute('font-weight', 'bold');
+    punLabel.setAttribute('fill', '#0066cc');
+    punLabel.textContent = 'PUN (PMOS)';
+    g.appendChild(punLabel);
 
-      // Connect bottom of chain to GND
-      const lastChainY = chainStartY + (termLength - 1) * transistorHeight;
-      const gndConn = document.createElementNS(ns, 'line');
-      gndConn.setAttribute('x1', chainX);
-      gndConn.setAttribute('y1', lastChainY + transistorHeight / 2);
-      gndConn.setAttribute('x2', chainX);
-      gndConn.setAttribute('y2', gndY);
-      gndConn.setAttribute('stroke', '#000');
-      gndConn.setAttribute('stroke-width', '2.5');
-      g.appendChild(gndConn);
-    });
+    const pdnLabel = document.createElementNS(ns, 'text');
+    pdnLabel.setAttribute('x', 50);
+    pdnLabel.setAttribute('y', (outputY + gndY) / 2);
+    pdnLabel.setAttribute('font-size', '16');
+    pdnLabel.setAttribute('font-weight', 'bold');
+    pdnLabel.setAttribute('fill', '#cc6600');
+    pdnLabel.textContent = 'PDN (NMOS)';
+    g.appendChild(pdnLabel);
+
+    // Inverter label
+    const invLabel = document.createElementNS(ns, 'text');
+    invLabel.setAttribute('x', inverterX - 40);
+    invLabel.setAttribute('y', invVddY - 60);
+    invLabel.setAttribute('font-size', '16');
+    invLabel.setAttribute('font-weight', 'bold');
+    invLabel.setAttribute('fill', '#006600');
+    invLabel.textContent = 'Output Inverter';
+    g.appendChild(invLabel);
 
     svgElement.appendChild(g);
     this.setupZoomPan(svgElement, g);
   }
 
   /**
-   * Draw CMOS transistor using PNG images
+   * Recursively render a CMOS tree (PDN or PUN structure)
+   * Returns { topX, topY, bottomX, bottomY } for connection points
    */
-  drawCMOSTransistor(group, x, y, type, label = '') {
+  renderCMOSTree(group, node, x, y, hSpacing, vSpacing) {
+    const ns = 'http://www.w3.org/2000/svg';
+    
+    if (!node) return { topX: x, topY: y, bottomX: x, bottomY: y };
+
+    // Single device (transistor)
+    if (node.type === 'device') {
+      // Use direct signal name (no prime notation)
+      // If inverted flag is set, the signal needs to be inverted - we'll handle with input inverter
+      const gateLabel = node.gate;  // Always use direct signal name
+      this.drawCMOSTransistor(group, x, y, node.deviceType.toUpperCase(), gateLabel, node.inverted);
+      return { topX: x, topY: y - 50, bottomX: x, bottomY: y + 50 };
+    }
+
+    // Series: stack children vertically, connect in chain
+    if (node.type === 'series') {
+      let currentY = y;
+      let firstResult = null;
+      let lastResult = null;
+      
+      for (let i = 0; i < node.children.length; i++) {
+        const child = node.children[i];
+        const result = this.renderCMOSTree(group, child, x, currentY, hSpacing * 0.7, vSpacing);
+        
+        if (i === 0) {
+          firstResult = result;
+        }
+        
+        // Connect to previous child
+        if (lastResult) {
+          const connLine = document.createElementNS(ns, 'line');
+          connLine.setAttribute('x1', lastResult.bottomX);
+          connLine.setAttribute('y1', lastResult.bottomY);
+          connLine.setAttribute('x2', result.topX);
+          connLine.setAttribute('y2', result.topY);
+          connLine.setAttribute('stroke', '#000');
+          connLine.setAttribute('stroke-width', '3');
+          group.appendChild(connLine);
+        }
+        
+        lastResult = result;
+        currentY = result.bottomY + vSpacing;
+      }
+      
+      return {
+        topX: firstResult ? firstResult.topX : x,
+        topY: firstResult ? firstResult.topY : y,
+        bottomX: lastResult ? lastResult.bottomX : x,
+        bottomY: lastResult ? lastResult.bottomY : y
+      };
+    }
+
+    // Parallel: place children side by side, connect tops and bottoms
+    if (node.type === 'parallel') {
+      const numChildren = node.children.length;
+      const totalWidth = (numChildren - 1) * hSpacing;
+      const startX = x - totalWidth / 2;
+      
+      const results = [];
+      for (let i = 0; i < numChildren; i++) {
+        const childX = startX + i * hSpacing;
+        const result = this.renderCMOSTree(group, node.children[i], childX, y, hSpacing * 0.6, vSpacing);
+        results.push(result);
+      }
+      
+      // Find bounds
+      const minTopY = Math.min(...results.map(r => r.topY));
+      const maxBottomY = Math.max(...results.map(r => r.bottomY));
+      const minX = Math.min(...results.map(r => r.topX));
+      const maxX = Math.max(...results.map(r => r.topX));
+      
+      // Draw top horizontal bar connecting all branches
+      const topBar = document.createElementNS(ns, 'line');
+      topBar.setAttribute('x1', minX);
+      topBar.setAttribute('y1', minTopY - 20);
+      topBar.setAttribute('x2', maxX);
+      topBar.setAttribute('y2', minTopY - 20);
+      topBar.setAttribute('stroke', '#000');
+      topBar.setAttribute('stroke-width', '3');
+      group.appendChild(topBar);
+      
+      // Draw bottom horizontal bar connecting all branches
+      const bottomBar = document.createElementNS(ns, 'line');
+      bottomBar.setAttribute('x1', minX);
+      bottomBar.setAttribute('y1', maxBottomY + 20);
+      bottomBar.setAttribute('x2', maxX);
+      bottomBar.setAttribute('y2', maxBottomY + 20);
+      bottomBar.setAttribute('stroke', '#000');
+      bottomBar.setAttribute('stroke-width', '3');
+      group.appendChild(bottomBar);
+      
+      // Connect each branch to the bars
+      for (const result of results) {
+        // Top connection
+        const topConn = document.createElementNS(ns, 'line');
+        topConn.setAttribute('x1', result.topX);
+        topConn.setAttribute('y1', minTopY - 20);
+        topConn.setAttribute('x2', result.topX);
+        topConn.setAttribute('y2', result.topY);
+        topConn.setAttribute('stroke', '#000');
+        topConn.setAttribute('stroke-width', '3');
+        group.appendChild(topConn);
+        
+        // Bottom connection
+        const bottomConn = document.createElementNS(ns, 'line');
+        bottomConn.setAttribute('x1', result.bottomX);
+        bottomConn.setAttribute('y1', result.bottomY);
+        bottomConn.setAttribute('x2', result.bottomX);
+        bottomConn.setAttribute('y2', maxBottomY + 20);
+        bottomConn.setAttribute('stroke', '#000');
+        bottomConn.setAttribute('stroke-width', '3');
+        group.appendChild(bottomConn);
+      }
+      
+      // Center output point
+      return {
+        topX: x,
+        topY: minTopY - 20,
+        bottomX: x,
+        bottomY: maxBottomY + 20
+      };
+    }
+
+    return { topX: x, topY: y, bottomX: x, bottomY: y };
+  }
+
+  /**
+   * Draw VDD power symbol
+   */
+  drawVDDSymbol(group, x, y) {
+    const ns = 'http://www.w3.org/2000/svg';
+    
+    // Vertical line up
+    const line = document.createElementNS(ns, 'line');
+    line.setAttribute('x1', x);
+    line.setAttribute('y1', y);
+    line.setAttribute('x2', x);
+    line.setAttribute('y2', y - 40);
+    line.setAttribute('stroke', '#000');
+    line.setAttribute('stroke-width', '3');
+    group.appendChild(line);
+
+    // Horizontal bar at top
+    const bar = document.createElementNS(ns, 'line');
+    bar.setAttribute('x1', x - 30);
+    bar.setAttribute('y1', y - 40);
+    bar.setAttribute('x2', x + 30);
+    bar.setAttribute('y2', y - 40);
+    bar.setAttribute('stroke', '#000');
+    bar.setAttribute('stroke-width', '5');
+    group.appendChild(bar);
+
+    // VDD label
+    const label = document.createElementNS(ns, 'text');
+    label.setAttribute('x', x - 25);
+    label.setAttribute('y', y - 55);
+    label.setAttribute('font-size', '16');
+    label.setAttribute('font-weight', 'bold');
+    label.textContent = 'VDD';
+    group.appendChild(label);
+  }
+
+  /**
+   * Draw GND ground symbol
+   */
+  drawGNDSymbol(group, x, y) {
+    const ns = 'http://www.w3.org/2000/svg';
+    
+    // Vertical line down
+    const line = document.createElementNS(ns, 'line');
+    line.setAttribute('x1', x);
+    line.setAttribute('y1', y - 40);
+    line.setAttribute('x2', x);
+    line.setAttribute('y2', y);
+    line.setAttribute('stroke', '#000');
+    line.setAttribute('stroke-width', '3');
+    group.appendChild(line);
+
+    // Ground symbol - three horizontal lines
+    for (let i = 0; i < 3; i++) {
+      const gndLine = document.createElementNS(ns, 'line');
+      const width = 35 - i * 12;
+      gndLine.setAttribute('x1', x - width);
+      gndLine.setAttribute('y1', y + i * 10);
+      gndLine.setAttribute('x2', x + width);
+      gndLine.setAttribute('y2', y + i * 10);
+      gndLine.setAttribute('stroke', '#000');
+      gndLine.setAttribute('stroke-width', '3');
+      group.appendChild(gndLine);
+    }
+
+    // GND label
+    const label = document.createElementNS(ns, 'text');
+    label.setAttribute('x', x + 50);
+    label.setAttribute('y', y + 15);
+    label.setAttribute('font-size', '16');
+    label.setAttribute('font-weight', 'bold');
+    label.textContent = 'GND';
+    group.appendChild(label);
+  }
+
+  /**
+   * Draw CMOS transistor using PNG images
+   * @param inverted - if true, draws a small inverter bubble indicating signal needs inversion
+   */
+  drawCMOSTransistor(group, x, y, type, label = '', inverted = false) {
     const ns = 'http://www.w3.org/2000/svg';
     const imageName = type === 'PMOS' ? 'pmos.png' : 'nmos.png';
     
+    // Transistor image - sized appropriately
+    const imgWidth = 100;
+    const imgHeight = 80;
+    
     const image = document.createElementNS(ns, 'image');
     image.setAttributeNS('http://www.w3.org/1999/xlink', 'href', `/assets/${imageName}`);
-    image.setAttribute('x', x - 87);  // 160px wide, centered at x
-    image.setAttribute('y', y - 52.5);  // 105px tall, centered at y
-    image.setAttribute('width', '160');
-    image.setAttribute('height', '105');
+    image.setAttribute('x', x - imgWidth/2);
+    image.setAttribute('y', y - imgHeight/2);
+    image.setAttribute('width', imgWidth);
+    image.setAttribute('height', imgHeight);
     group.appendChild(image);
 
-    // Draw label if provided
+    // Draw label to the left with clear background
     if (label) {
+      // Background rect for label
+      const labelBg = document.createElementNS(ns, 'rect');
+      labelBg.setAttribute('x', x - imgWidth/2 - 55);
+      labelBg.setAttribute('y', y - 12);
+      labelBg.setAttribute('width', '50');
+      labelBg.setAttribute('height', '24');
+      labelBg.setAttribute('fill', inverted ? '#ffe0e0' : 'white');  // Light red bg for inverted
+      labelBg.setAttribute('stroke', inverted ? '#cc0000' : '#999');
+      labelBg.setAttribute('stroke-width', inverted ? '2' : '1');
+      labelBg.setAttribute('rx', '4');
+      group.appendChild(labelBg);
+      
       const labelText = document.createElementNS(ns, 'text');
-      labelText.setAttribute('x', x - 100);
+      labelText.setAttribute('x', x - imgWidth/2 - 30);
       labelText.setAttribute('y', y + 5);
-      labelText.setAttribute('font-size', '12');
+      labelText.setAttribute('font-size', '14');
       labelText.setAttribute('font-weight', 'bold');
-      labelText.setAttribute('fill', '#000');
+      labelText.setAttribute('text-anchor', 'middle');
+      labelText.setAttribute('fill', inverted ? '#cc0000' : '#000');
       labelText.textContent = label;
       group.appendChild(labelText);
+
+      // If inverted, draw small inversion bubble
+      if (inverted) {
+        const bubbleX = x - imgWidth/2 - 8;
+        const bubble = document.createElementNS(ns, 'circle');
+        bubble.setAttribute('cx', bubbleX);
+        bubble.setAttribute('cy', y);
+        bubble.setAttribute('r', '6');
+        bubble.setAttribute('fill', 'white');
+        bubble.setAttribute('stroke', '#cc0000');
+        bubble.setAttribute('stroke-width', '2');
+        group.appendChild(bubble);
+      }
     }
   }
 

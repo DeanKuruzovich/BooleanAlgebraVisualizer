@@ -19,8 +19,28 @@ document.addEventListener('DOMContentLoaded', () => {
   const cmosTab = document.getElementById('cmosTab');
   const truthTableTab = document.getElementById('truthTableTab');
 
+  // Format help modal elements
+  const formatHelpBtn = document.getElementById('formatHelpBtn');
+  const formatHelpModal = document.getElementById('formatHelpModal');
+  const modalClose = document.querySelector('.modal-close');
+
   let currentVisualizer = null;
   let currentLatex = '';
+
+  // Format help modal handlers
+  formatHelpBtn.addEventListener('click', () => {
+    formatHelpModal.style.display = 'block';
+  });
+
+  modalClose.addEventListener('click', () => {
+    formatHelpModal.style.display = 'none';
+  });
+
+  window.addEventListener('click', (e) => {
+    if (e.target === formatHelpModal) {
+      formatHelpModal.style.display = 'none';
+    }
+  });
 
   // Visualize on Enter key
   expressionInput.addEventListener('keypress', (e) => {
