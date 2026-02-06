@@ -6,7 +6,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const expressionInput = document.getElementById('expressionInput');
   const copyLatexBtn = document.getElementById('copyLatexBtn');
   const copyCSVBtn = document.getElementById('copyCSVBtn');
-  const copyTextBtn = document.getElementById('copyTextBtn');
   const copyHTMLBtn = document.getElementById('copyHTMLBtn');
   const errorMessage = document.getElementById('errorMessage');
   const truthTableContainer = document.getElementById('truthTableContainer');
@@ -77,10 +76,26 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   copyLatexBtn.addEventListener('click', () => {
-    if (currentLatex) {
-      navigator.clipboard.writeText(currentLatex);
+    if (!currentLatex) return;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(currentLatex).catch(() => {
+        fallbackCopy(currentLatex);
+      });
+    } else {
+      fallbackCopy(currentLatex);
     }
   });
+
+  function fallbackCopy(text) {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+  }
 
   // Copy as CSV (comma-separated)
   copyCSVBtn.addEventListener('click', () => {
@@ -92,18 +107,6 @@ document.addEventListener('DOMContentLoaded', () => {
       csv += vars.map(v => row[v]).join(',') + ',' + row.output + '\n';
     });
     navigator.clipboard.writeText(csv);
-  });
-
-  // Copy as text table (tab-separated — pastes as table in Google Docs / Word)
-  copyTextBtn.addEventListener('click', () => {
-    if (!currentVisualizer) return;
-    const vars = currentVisualizer.variables;
-    const table = currentVisualizer.truthTable;
-    let text = vars.map(v => v.toUpperCase()).join('\t') + '\tOutput\n';
-    table.forEach(row => {
-      text += vars.map(v => String(row[v])).join('\t') + '\t' + row.output + '\n';
-    });
-    navigator.clipboard.writeText(text);
   });
 
   // Copy rendered HTML table (preserves formatting when pasting into rich-text editors)
