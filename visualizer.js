@@ -613,32 +613,80 @@ class Visualizer {
    *    network complement IS the desired output, no inverter needed
    * 7. Any NOT(VAR) leaves get dedicated input inverter sub-circuits
    */
+
+  /**
+   * Measure a PDN/PUN tree to determine how much space it needs.
+   *   width  = total parallel leaf devices (horizontal extent)
+   *   depth  = longest series chain (vertical extent)
+   */
+  measureTree(node) {
+    if (!node) return { width: 1, depth: 1 };
+    if (node.type === 'device') return { width: 1, depth: 1 };
+    if (node.type === 'series') {
+      let totalDepth = 0;
+      let maxWidth = 0;
+      for (const child of node.children) {
+        const m = this.measureTree(child);
+        totalDepth += m.depth;
+        maxWidth = Math.max(maxWidth, m.width);
+      }
+      return { width: maxWidth, depth: totalDepth };
+    }
+    if (node.type === 'parallel') {
+      let totalWidth = 0;
+      let maxDepth = 0;
+      for (const child of node.children) {
+        const m = this.measureTree(child);
+        totalWidth += m.width;
+        maxDepth = Math.max(maxDepth, m.depth);
+      }
+      return { width: totalWidth, depth: maxDepth };
+    }
+    return { width: 1, depth: 1 };
+  }
+
   renderCMOSDiagram(svgElement) {
     svgElement.innerHTML = '';
     const ns = 'http://www.w3.org/2000/svg';
-    svgElement.setAttribute('viewBox', '0 0 1800 1200');
+    // Prepare: strip outer complement, expand, track inverted inputs
+    const { coreFn, needsOutputInverter, invertedInputs } = this.prepareForCMOS(this.ast);
+    const pdnTree = this.buildPDNTree(coreFn);
+    const punTree = this.dualizePDNtoPUN(pdnTree);
+
+    // Measure trees to compute dynamic layout
+    const pdnSize = this.measureTree(pdnTree);
+    const punSize = this.measureTree(punTree);
+    const maxWidth = Math.max(pdnSize.width, punSize.width, 1);
+    const totalDepth = pdnSize.depth + punSize.depth;
+
+    // Dynamic spacing — scales with complexity
+    const transistorSpacingH = Math.max(200, 160 + maxWidth * 20);
+    const transistorSpacingV = Math.max(140, 120 + totalDepth * 15);
+
+    // Dynamic canvas — grows with circuit, infinite room
+    const numInverters = invertedInputs.size;
+    const leftMargin = numInverters > 0 ? 400 : 100;
+    const neededWidth = leftMargin + maxWidth * transistorSpacingH + (needsOutputInverter ? 900 : 500);
+    const neededHeight = 300 + totalDepth * transistorSpacingV + 500;
+    const canvasW = Math.max(1800, neededWidth);
+    const canvasH = Math.max(1200, neededHeight);
+
+    svgElement.setAttribute('viewBox', `0 0 ${canvasW} ${canvasH}`);
 
     const bg = document.createElementNS(ns, 'rect');
-    bg.setAttribute('width', '1800');
-    bg.setAttribute('height', '1200');
+    bg.setAttribute('width', String(canvasW));
+    bg.setAttribute('height', String(canvasH));
     bg.setAttribute('fill', 'white');
     svgElement.appendChild(bg);
 
     const g = document.createElementNS(ns, 'g');
     g.setAttribute('id', 'cmosGroup');
 
-    // Layout parameters
-    const mainCenterX = 600;
+    // Dynamic positions based on circuit size
+    const mainCenterX = leftMargin + (maxWidth * transistorSpacingH) / 2 + 100;
     const vddY = 80;
-    const gndY = 1120;
-    const outputY = 600;
-    const transistorSpacingH = 180;
-    const transistorSpacingV = 140;
-
-    // Prepare: strip outer complement, expand, track inverted inputs
-    const { coreFn, needsOutputInverter, invertedInputs } = this.prepareForCMOS(this.ast);
-    const pdnTree = this.buildPDNTree(coreFn);
-    const punTree = this.dualizePDNtoPUN(pdnTree);
+    const gndY = canvasH - 80;
+    const outputY = (vddY + gndY) / 2;
 
     // ============================================
     // MAIN NETWORK
@@ -695,8 +743,8 @@ class Visualizer {
     // ============================================
     if (invertedInputs.size > 0) {
       const invVars = Array.from(invertedInputs);
-      const invSpacing = Math.min(350, (gndY - vddY - 200) / Math.max(invVars.length, 1));
-      const invX = 200;
+      const invSpacing = Math.max(300, Math.min(400, (gndY - vddY - 200) / Math.max(invVars.length, 1)));
+      const invX = Math.max(200, mainCenterX - maxWidth * transistorSpacingH / 2 - 200);
       invVars.forEach((varName, i) => {
         const invCenterY = vddY + 180 + i * invSpacing;
         this.drawInputInverterCircuit(g, invX, invCenterY, varName);
@@ -707,7 +755,7 @@ class Visualizer {
     // OUTPUT SECTION (conditional inverter)
     // ============================================
     if (needsOutputInverter) {
-      const inverterX = mainCenterX + 500;
+      const inverterX = mainCenterX + Math.max(500, maxWidth * transistorSpacingH / 2 + 300);
       const gateConnectionX = inverterX - 70;
 
       // Horizontal connection to inverter gate
@@ -821,7 +869,7 @@ class Visualizer {
       g.appendChild(finalLabel);
     } else {
       // No output inverter — direct output from main network
-      const finalX = mainCenterX + 300;
+      const finalX = mainCenterX + Math.max(300, maxWidth * transistorSpacingH / 2 + 200);
 
       const outLine = document.createElementNS(ns, 'line');
       outLine.setAttribute('x1', mainCenterX);
@@ -875,7 +923,7 @@ class Visualizer {
       
       for (let i = 0; i < node.children.length; i++) {
         const child = node.children[i];
-        const result = this.renderCMOSTree(group, child, x, currentY, hSpacing * 0.7, vSpacing);
+        const result = this.renderCMOSTree(group, child, x, currentY, hSpacing, vSpacing);
         
         if (i === 0) {
           firstResult = result;
@@ -905,17 +953,21 @@ class Visualizer {
       };
     }
 
-    // Parallel: place children side by side, connect tops and bottoms
+    // Parallel: place children side by side — allocate width proportional to each child's needs
     if (node.type === 'parallel') {
-      const numChildren = node.children.length;
-      const totalWidth = (numChildren - 1) * hSpacing;
-      const startX = x - totalWidth / 2;
+      const childMeasures = node.children.map(c => this.measureTree(c));
+      const totalLeaves = childMeasures.reduce((s, m) => s + m.width, 0);
+      const totalWidth = Math.max(totalLeaves, node.children.length) * hSpacing;
       
       const results = [];
-      for (let i = 0; i < numChildren; i++) {
-        const childX = startX + i * hSpacing;
-        const result = this.renderCMOSTree(group, node.children[i], childX, y, hSpacing * 0.6, vSpacing);
+      let currentX = x - totalWidth / 2;
+      for (let i = 0; i < node.children.length; i++) {
+        const childW = childMeasures[i].width;
+        const slotWidth = (childW / totalLeaves) * totalWidth;
+        const childX = currentX + slotWidth / 2;
+        const result = this.renderCMOSTree(group, node.children[i], childX, y, hSpacing, vSpacing);
         results.push(result);
+        currentX += slotWidth;
       }
       
       // Find bounds
