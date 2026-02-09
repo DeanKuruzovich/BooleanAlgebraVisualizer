@@ -12,51 +12,78 @@ class Visualizer {
   }
 
   /**
-   * Render logic gate block diagram from AST
+   * Measure gate tree to determine leaf count and depth for spacing.
+   */
+  measureGateTree(ast) {
+    if (!ast) return { leaves: 1, depth: 0 };
+    if (ast.type === 'VAR') return { leaves: 1, depth: 0 };
+    if (ast.type === 'NOT') {
+      const child = this.measureGateTree(ast.operand);
+      return { leaves: child.leaves, depth: child.depth + 1 };
+    }
+    const left = this.measureGateTree(ast.left);
+    const right = this.measureGateTree(ast.right);
+    return {
+      leaves: left.leaves + right.leaves,
+      depth: Math.max(left.depth, right.depth) + 1
+    };
+  }
+
+  /**
+   * Render logic gate block diagram from AST — dynamic sizing
    */
   renderGateDiagram(svgElement) {
     svgElement.innerHTML = '';
-    svgElement.setAttribute('viewBox', '0 0 1200 600');
-
     const ns = 'http://www.w3.org/2000/svg';
 
-    // Background
+    const treeMeasure = this.measureGateTree(this.ast);
+    const leafCount = Math.max(treeMeasure.leaves, 1);
+    const treeDepth = Math.max(treeMeasure.depth, 1);
+
+    const leafSlotH = 110;
+    const totalHeight = leafCount * leafSlotH;
+    const totalWidth = treeDepth * 280 + 400;
+
+    const canvasW = Math.max(1200, totalWidth + 200);
+    const canvasH = Math.max(600, totalHeight + 200);
+
+    svgElement.setAttribute('viewBox', `0 0 ${canvasW} ${canvasH}`);
+
     const bg = document.createElementNS(ns, 'rect');
-    bg.setAttribute('width', '1200');
-    bg.setAttribute('height', '600');
+    bg.setAttribute('width', String(canvasW));
+    bg.setAttribute('height', String(canvasH));
     bg.setAttribute('fill', 'white');
     bg.setAttribute('stroke', '#ddd');
     bg.setAttribute('stroke-width', '1');
     svgElement.appendChild(bg);
 
-    // Enable zoom and pan
     const g = document.createElementNS(ns, 'g');
     g.setAttribute('id', 'zoomGroup');
-    
-    // Render gate tree from AST
-    const finalX = this.renderGateTree(g, this.ast, 200, 250);
 
-    // Draw output line from final gate
+    const startX = 100;
+    const centerY = canvasH / 2;
+    const halfSpan = (leafCount * leafSlotH) / 2;
+
+    const finalX = this.renderGateTree(g, this.ast, startX, centerY, 0, centerY - halfSpan, centerY + halfSpan);
+
     const outputX = finalX + 60;
     const line = document.createElementNS(ns, 'line');
     line.setAttribute('x1', finalX);
-    line.setAttribute('y1', '250');
+    line.setAttribute('y1', String(centerY));
     line.setAttribute('x2', outputX);
-    line.setAttribute('y2', '250');
+    line.setAttribute('y2', String(centerY));
     line.setAttribute('stroke', '#000000');
     line.setAttribute('stroke-width', '3.5');
     g.appendChild(line);
 
     const outputLabel = document.createElementNS(ns, 'text');
     outputLabel.setAttribute('x', outputX + 10);
-    outputLabel.setAttribute('y', '255');
+    outputLabel.setAttribute('y', String(centerY + 5));
     outputLabel.setAttribute('font-size', '12');
     outputLabel.textContent = 'Output';
     g.appendChild(outputLabel);
 
     svgElement.appendChild(g);
-
-    // Add zoom and pan functionality
     this.setupZoomPan(svgElement, g);
   }
 
@@ -127,16 +154,14 @@ class Visualizer {
   }
 
   /**
-   * Recursively render gate tree
+   * Recursively render gate tree with subtree-aware vertical spacing.
+   * Each subtree gets vertical band [yMin, yMax] proportional to its leaf count.
    */
-  renderGateTree(svg, ast, x, y, depth = 0) {
+  renderGateTree(svg, ast, x, y, depth, yMin, yMax) {
     const ns = 'http://www.w3.org/2000/svg';
-    const spacing = 200;
-    const verticalSpacing = 120;
-
+    const hSpacing = 200;
 
     if (ast.type === 'VAR') {
-      // Draw variable node box
       const rect = document.createElementNS(ns, 'rect');
       rect.setAttribute('x', x - 25);
       rect.setAttribute('y', y - 15);
@@ -157,7 +182,6 @@ class Visualizer {
       text.textContent = ast.value.toUpperCase();
       svg.appendChild(text);
 
-      // Draw line from box to the right
       const line = document.createElementNS(ns, 'line');
       line.setAttribute('x1', x + 25);
       line.setAttribute('y1', y);
@@ -171,104 +195,42 @@ class Visualizer {
     }
 
     if (ast.type === 'NOT') {
-      const inputX = this.renderGateTree(svg, ast.operand, x, y, depth + 1);
-      const gateX = inputX + spacing;
+      const inputX = this.renderGateTree(svg, ast.operand, x, y, depth + 1, yMin, yMax);
+      const gateX = inputX + hSpacing;
       this.drawNotGate(svg, gateX, y);
-      
       this.connectLineOrthogonal(svg, inputX, y, gateX - 60, y);
-      
       return gateX + 60;
     }
 
-    if (ast.type === 'AND') {
-      const leftY = y - verticalSpacing;
-      const rightY = y + verticalSpacing;
-      const leftX = this.renderGateTree(svg, ast.left, x, leftY, depth + 1);
-      const rightX = this.renderGateTree(svg, ast.right, x, rightY, depth + 1);
-      
-      const gateX = Math.max(leftX, rightX) + spacing;
-      this.drawAndGate(svg, gateX, y);
-      
-      this.connectLineOrthogonal(svg, leftX, leftY, gateX - 50, y - 23);
-      this.connectLineOrthogonal(svg, rightX, rightY, gateX - 50, y + 23);
-      
-      return gateX + 60;
-    }
+    // Binary gates: split vertical band proportionally by leaf count
+    const drawBinaryGate = (drawFn, topPinOff, bottomPinOff) => {
+      const leftMeasure = this.measureGateTree(ast.left);
+      const rightMeasure = this.measureGateTree(ast.right);
+      const totalLeaves = leftMeasure.leaves + rightMeasure.leaves;
+      const leftFraction = leftMeasure.leaves / totalLeaves;
 
-    if (ast.type === 'OR') {
-      const leftY = y - verticalSpacing;
-      const rightY = y + verticalSpacing;
-      const leftX = this.renderGateTree(svg, ast.left, x, leftY, depth + 1);
-      const rightX = this.renderGateTree(svg, ast.right, x, rightY, depth + 1);
-      
-      const gateX = Math.max(leftX, rightX) + spacing;
-      this.drawOrGate(svg, gateX, y);
-      
-      this.connectLineOrthogonal(svg, leftX, leftY, gateX - 50, y - 21);
-      this.connectLineOrthogonal(svg, rightX, rightY, gateX - 50, y + 21);
-      
-      return gateX + 60;
-    }
+      const splitY = yMin + leftFraction * (yMax - yMin);
+      const leftCenterY = (yMin + splitY) / 2;
+      const rightCenterY = (splitY + yMax) / 2;
 
-    if (ast.type === 'NAND') {
-      const leftY = y - verticalSpacing;
-      const rightY = y + verticalSpacing;
-      const leftX = this.renderGateTree(svg, ast.left, x, leftY, depth + 1);
-      const rightX = this.renderGateTree(svg, ast.right, x, rightY, depth + 1);
-      
-      const gateX = Math.max(leftX, rightX) + spacing;
-      this.drawNandGate(svg, gateX, y);
-      
-      this.connectLineOrthogonal(svg, leftX, leftY, gateX - 50, y - 21.5);
-      this.connectLineOrthogonal(svg, rightX, rightY, gateX - 50, y + 21.5);
-      
-      return gateX + 60;
-    }
+      const leftX = this.renderGateTree(svg, ast.left, x, leftCenterY, depth + 1, yMin, splitY);
+      const rightX = this.renderGateTree(svg, ast.right, x, rightCenterY, depth + 1, splitY, yMax);
 
-    if (ast.type === 'NOR') {
-      const leftY = y - verticalSpacing;
-      const rightY = y + verticalSpacing;
-      const leftX = this.renderGateTree(svg, ast.left, x, leftY, depth + 1);
-      const rightX = this.renderGateTree(svg, ast.right, x, rightY, depth + 1);
-      
-      const gateX = Math.max(leftX, rightX) + spacing;
-      this.drawNorGate(svg, gateX, y);
-      
-      this.connectLineOrthogonal(svg, leftX, leftY, gateX - 50, y - 19);
-      this.connectLineOrthogonal(svg, rightX, rightY, gateX - 50, y + 19);
-      
-      return gateX + 60;
-    }
+      const gateX = Math.max(leftX, rightX) + hSpacing;
+      drawFn.call(this, svg, gateX, y);
 
-    if (ast.type === 'XOR') {
-      const leftY = y - verticalSpacing;
-      const rightY = y + verticalSpacing;
-      const leftX = this.renderGateTree(svg, ast.left, x, leftY, depth + 1);
-      const rightX = this.renderGateTree(svg, ast.right, x, rightY, depth + 1);
-      
-      const gateX = Math.max(leftX, rightX) + spacing;
-      this.drawXorGate(svg, gateX, y);
-      
-      this.connectLineOrthogonal(svg, leftX, leftY, gateX - 50, y - 18.5);
-      this.connectLineOrthogonal(svg, rightX, rightY, gateX - 50, y + 18.5);
-      
-      return gateX + 60;
-    }
+      this.connectLineOrthogonal(svg, leftX, leftCenterY, gateX - 50, y + topPinOff);
+      this.connectLineOrthogonal(svg, rightX, rightCenterY, gateX - 50, y + bottomPinOff);
 
-    if (ast.type === 'XNOR') {
-      const leftY = y - verticalSpacing;
-      const rightY = y + verticalSpacing;
-      const leftX = this.renderGateTree(svg, ast.left, x, leftY, depth + 1);
-      const rightX = this.renderGateTree(svg, ast.right, x, rightY, depth + 1);
-      
-      const gateX = Math.max(leftX, rightX) + spacing;
-      this.drawXnorGate(svg, gateX, y);
-      
-      this.connectLineOrthogonal(svg, leftX, leftY, gateX - 50, y - 17);
-      this.connectLineOrthogonal(svg, rightX, rightY, gateX - 50, y + 17);
-      
       return gateX + 60;
-    }
+    };
+
+    if (ast.type === 'AND')  return drawBinaryGate(this.drawAndGate,  -23, 23);
+    if (ast.type === 'OR')   return drawBinaryGate(this.drawOrGate,   -21, 21);
+    if (ast.type === 'NAND') return drawBinaryGate(this.drawNandGate, -21.5, 21.5);
+    if (ast.type === 'NOR')  return drawBinaryGate(this.drawNorGate,  -19, 19);
+    if (ast.type === 'XOR')  return drawBinaryGate(this.drawXorGate,  -18.5, 18.5);
+    if (ast.type === 'XNOR') return drawBinaryGate(this.drawXnorGate, -17, 17);
 
     return x;
   }
@@ -353,9 +315,23 @@ class Visualizer {
    */
   connectLineOrthogonal(svg, x1, y1, x2, y2) {
     const ns = 'http://www.w3.org/2000/svg';
-    const midX = (x1 + x2) / 2;
-    
-    // Horizontal line to midpoint
+    // Place vertical segment 75% toward destination to keep wires close to their gate
+    const midX = x1 + (x2 - x1) * 0.75;
+
+    if (Math.abs(y1 - y2) < 1) {
+      // Straight horizontal — no bend needed
+      const line = document.createElementNS(ns, 'line');
+      line.setAttribute('x1', x1);
+      line.setAttribute('y1', y1);
+      line.setAttribute('x2', x2);
+      line.setAttribute('y2', y2);
+      line.setAttribute('stroke', '#000000');
+      line.setAttribute('stroke-width', '3.5');
+      svg.appendChild(line);
+      return;
+    }
+
+    // Horizontal line to turn point
     const line1 = document.createElementNS(ns, 'line');
     line1.setAttribute('x1', x1);
     line1.setAttribute('y1', y1);
@@ -365,7 +341,7 @@ class Visualizer {
     line1.setAttribute('stroke-width', '3.5');
     svg.appendChild(line1);
     
-    // Vertical line to destination
+    // Vertical line to destination row
     const line2 = document.createElementNS(ns, 'line');
     line2.setAttribute('x1', midX);
     line2.setAttribute('y1', y1);
@@ -375,7 +351,7 @@ class Visualizer {
     line2.setAttribute('stroke-width', '3.5');
     svg.appendChild(line2);
     
-    // Horizontal line to destination
+    // Horizontal line to gate input
     const line3 = document.createElementNS(ns, 'line');
     line3.setAttribute('x1', midX);
     line3.setAttribute('y1', y2);
