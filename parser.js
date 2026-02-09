@@ -21,6 +21,7 @@ class BooleanExpression {
       // NOT variants
       .replace(/'/g, '!')           // ' to !
       .replace(/¯/g, '!')           // Overline to !
+      .replace(/~/g, '!')           // ~ to !
       // NOR variants
       .replace(/⊽/g, ' nor ')       // NOR symbol
       .replace(/↓/g, ' nor ')       // NOR arrow symbol
@@ -164,15 +165,29 @@ class BooleanExpression {
 
     const parseAnd = () => {
       let left = parseNot();
-      while (peek() && (peek().type === 'AND' || peek().type === 'NAND')) {
-        const op = consume();
-        const right = parseNot();
-        left = {
-          type: op.type,
-          left: left,
-          right: right,
-          operator: op.value
-        };
+      while (peek()) {
+        if (peek().type === 'AND' || peek().type === 'NAND') {
+          // Explicit AND / NAND operator
+          const op = consume();
+          const right = parseNot();
+          left = {
+            type: op.type,
+            left: left,
+            right: right,
+            operator: op.value
+          };
+        } else if (peek().type === 'VAR' || peek().type === 'NOT' || peek().type === 'LPAREN') {
+          // Implicit AND: adjacent terms like XYZ, X'Y, (A+B)C
+          const right = parseNot();
+          left = {
+            type: 'AND',
+            left: left,
+            right: right,
+            operator: 'and'
+          };
+        } else {
+          break;
+        }
       }
       return left;
     };
@@ -187,7 +202,21 @@ class BooleanExpression {
           operator: "'"
         };
       }
-      return parsePrimary();
+      return parsePostfix();
+    };
+
+    // Postfix NOT: X' becomes NOT(X), (A+B)' becomes NOT(A OR B)
+    const parsePostfix = () => {
+      let node = parsePrimary();
+      while (peek() && peek().type === 'NOT') {
+        consume();
+        node = {
+          type: 'NOT',
+          operand: node,
+          operator: "'"
+        };
+      }
+      return node;
     };
 
     const parsePrimary = () => {
