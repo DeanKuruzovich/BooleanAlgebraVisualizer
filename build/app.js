@@ -7,18 +7,23 @@ document.addEventListener('DOMContentLoaded', () => {
   const copyLatexBtn = document.getElementById('copyLatexBtn');
   const copyCSVBtn = document.getElementById('copyCSVBtn');
   const copyHTMLBtn = document.getElementById('copyHTMLBtn');
+  const copyKMapCSVBtn = document.getElementById('copyKMapCSVBtn');
+  const copyKMapHTMLBtn = document.getElementById('copyKMapHTMLBtn');
   const errorMessage = document.getElementById('errorMessage');
   const truthTableContainer = document.getElementById('truthTableContainer');
+  const kmapContainer = document.getElementById('kmapContainer');
   const gatesSvg = document.getElementById('gatesSvg');
   const cmosSvg = document.getElementById('cmosSvg');
 
   const tabBlockDiagram = document.getElementById('tabBlockDiagram');
   const tabCMOS = document.getElementById('tabCMOS');
   const tabTruthTable = document.getElementById('tabTruthTable');
+  const tabKMap = document.getElementById('tabKMap');
 
   const blockDiagramTab = document.getElementById('blockDiagramTab');
   const cmosTab = document.getElementById('cmosTab');
   const truthTableTab = document.getElementById('truthTableTab');
+  const kmapTab = document.getElementById('kmapTab');
 
   // Format help modal elements
   const formatHelpBtn = document.getElementById('formatHelpBtn');
@@ -70,6 +75,7 @@ document.addEventListener('DOMContentLoaded', () => {
       currentVisualizer.renderCMOSDiagram(cmosSvg);
       
       currentVisualizer.renderTruthTable(truthTableContainer);
+      currentVisualizer.renderKMap(kmapContainer);
     } catch (error) {
       showError(error.message);
     }
@@ -97,6 +103,33 @@ document.addEventListener('DOMContentLoaded', () => {
     document.body.removeChild(ta);
   }
 
+  // Build Google-Docs-friendly HTML from a table element.
+  function buildCopyableHTML(tableEl) {
+    const clone = tableEl.cloneNode(true);
+    clone.setAttribute('border', '1');
+    clone.style.borderCollapse = 'collapse';
+    clone.querySelectorAll('th, td').forEach(cell => {
+      cell.style.border = '1px solid #000';
+      cell.style.padding = '4px 8px';
+      cell.style.textAlign = 'center';
+    });
+    clone.querySelectorAll('th').forEach(th => {
+      th.style.backgroundColor = '#f5f5f5';
+      th.style.fontWeight = 'bold';
+    });
+    return '<html><body><!--StartFragment-->' + clone.outerHTML + '<!--EndFragment--></body></html>';
+  }
+
+  function getPlainText(tableEl) {
+    const rows = [];
+    tableEl.querySelectorAll('tr').forEach(tr => {
+      const cells = [];
+      tr.querySelectorAll('th, td').forEach(cell => cells.push(cell.textContent));
+      rows.push(cells.join('\t'));
+    });
+    return rows.join('\n');
+  }
+
   // Copy as CSV (comma-separated)
   copyCSVBtn.addEventListener('click', () => {
     if (!currentVisualizer) return;
@@ -109,18 +142,42 @@ document.addEventListener('DOMContentLoaded', () => {
     navigator.clipboard.writeText(csv);
   });
 
-  // Copy rendered HTML table (preserves formatting when pasting into rich-text editors)
+  // Copy rendered HTML table (preserves formatting in Google Docs, Word, etc.)
   copyHTMLBtn.addEventListener('click', () => {
     const tableEl = truthTableContainer.querySelector('table');
     if (!tableEl) return;
-    const htmlStr = tableEl.outerHTML;
-    const plainRows = [];
+    const htmlStr = buildCopyableHTML(tableEl);
+    const plainText = getPlainText(tableEl);
+    const blob = new Blob([htmlStr], { type: 'text/html' });
+    const textBlob = new Blob([plainText], { type: 'text/plain' });
+    navigator.clipboard.write([
+      new ClipboardItem({
+        'text/html': blob,
+        'text/plain': textBlob
+      })
+    ]);
+  });
+
+  // Copy K-map as CSV
+  copyKMapCSVBtn.addEventListener('click', () => {
+    const tableEl = kmapContainer.querySelector('table');
+    if (!tableEl) return;
+    const rows = [];
     tableEl.querySelectorAll('tr').forEach(tr => {
       const cells = [];
       tr.querySelectorAll('th, td').forEach(cell => cells.push(cell.textContent));
-      plainRows.push(cells.join('\t'));
+      rows.push(cells.join(','));
     });
-    const plainText = plainRows.join('\n');
+    const csv = rows.join('\n');
+    navigator.clipboard.writeText(csv);
+  });
+
+  // Copy K-map as HTML table
+  copyKMapHTMLBtn.addEventListener('click', () => {
+    const tableEl = kmapContainer.querySelector('table');
+    if (!tableEl) return;
+    const htmlStr = buildCopyableHTML(tableEl);
+    const plainText = getPlainText(tableEl);
     const blob = new Blob([htmlStr], { type: 'text/html' });
     const textBlob = new Blob([plainText], { type: 'text/plain' });
     navigator.clipboard.write([
@@ -132,8 +189,8 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // Tab switching
-  const tabs = { block: tabBlockDiagram, cmos: tabCMOS, truth: tabTruthTable };
-  const contents = { block: blockDiagramTab, cmos: cmosTab, truth: truthTableTab };
+  const tabs = { block: tabBlockDiagram, cmos: tabCMOS, truth: tabTruthTable, kmap: tabKMap };
+  const contents = { block: blockDiagramTab, cmos: cmosTab, truth: truthTableTab, kmap: kmapTab };
 
   Object.keys(tabs).forEach(key => {
     tabs[key].addEventListener('click', () => {
