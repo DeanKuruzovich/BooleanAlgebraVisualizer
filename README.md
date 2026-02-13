@@ -1,12 +1,12 @@
 # Boolean Algebra Visualizer
 
-[![Live Demo](https://img.shields.io/badge/demo-online-green.svg)](https://DeanKuruzovich.github.io/BooleanAlgebraVisualizer/)
+[![Live Demo](https://img.shields.io/badge/demo-online-green.svg)]([https://DeanKuruzovich.github.io/BooleanAlgebraVisualizer/](https://booleanalgbravisualizer.github.io/))
 
-A powerful tool to visualize, analyze, and simplify boolean expressions. This visualizer provides real-time generation of logic circuits, CMOS layouts, truth tables, and Karnaugh maps.
+A tool to visualize, analyze, and simplify boolean expressions. This visualizer provides real time generation of logic circuits, CMOS layouts, truth tables, and Karnaugh maps.
 
 ## Features
 
-### 🧠 Advanced Parsing
+### Parsing
 The visualizer uses a robust recursive descent parser that supports a wide variety of input formats:
 - **Operators**: `+` (OR), `*` (AND), `!` (NOT), `^` (XOR).
 - **Universal Gates**: NAND, NOR, XNOR.
@@ -14,7 +14,7 @@ The visualizer uses a robust recursive descent parser that supports a wide varie
 - **Symbols**: Familiar programming symbols like `&`, `|`, and `~`.
 - **Shorthand**: Supports implicit AND (e.g., `AB`) and postfix NOT (e.g., `A'`).
 
-### 📊 Visualizations
+### Visualizations
 - **Logic Gate Diagrams**: Dynamic SVG generation with proportional spacing for clear, readable schematics.
 - **CMOS Circuits**: Visualizes Complementary Metal-Oxide-Semiconductor layouts, detailing:
   - **Pull-Up Network (PUN)**: PMOS transistor arrangement.
@@ -41,31 +41,3 @@ Enter a boolean expression into the input field. The parser is flexible and acce
 | **NOR** | `A nor B` | `A ↓ B` |
 | **XOR** | `A ^ B` | `A xor B` |
 | **Complex** | `(A+B)*C` | `(!A B) + (C ^ D)` |
-
-## Development
-
-To set up the project locally for development:
-
-1. **Install Dependencies**
-   ```bash
-   npm install
-   ```
-
-2. **Run Locally**
-   Start the local server (available at `http://localhost:3000` by default):
-   ```bash
-   npm start
-   ```
-
-3. **Deploy**
-   Build and deploy to GitHub Pages:
-   ```bash
-   npm run deploy
-   ```
-
-## Tech Stack
-
-- **Core**: Vanilla JavaScript (ES6+)
-- **Graphics**: SVG (Scalable Vector Graphics)
-- **Styling**: CSS3, CSS Grid/Flexbox
-- **Server**: Node.js (Express) for local serving
